@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 // Re-using filter logic for getDaily/Weekly/Monthly
-export const filterSalesByDate = (sales, filterType) => {
+export const filterSalesByDate = (sales, filterType, startDate, endDate) => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Midnight today
 
@@ -20,6 +20,13 @@ export const filterSalesByDate = (sales, filterType) => {
                 const oneMonthAgo = new Date(today);
                 oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
                 return saleDate >= oneMonthAgo;
+            case 'custom':
+                if (!startDate || !endDate) return true;
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                return saleDate >= start && saleDate <= end;
             default:
                 return true;
         }

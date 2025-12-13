@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useInventory } from '../../logic/InventoryContext';
 import { calculateSaleTotals, validateSale } from '../../logic/salesLogic';
-import { ArrowLeft, CheckCircle, Calculator } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Calculator, Package, Hash } from 'lucide-react';
+import { AppButton, AppCard, AppInput, AppSectionHeader, AppIconButton } from '../../components';
+import PageLayout from '../../components/PageLayout';
 
 const RecordSale = ({ onNavigate }) => {
     const { products, recordSale } = useInventory();
@@ -53,74 +55,70 @@ const RecordSale = ({ onNavigate }) => {
     };
 
     return (
-        <div className="container">
-            <header style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-                <button
-                    onClick={() => onNavigate('dashboard')}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}
-                >
-                    <ArrowLeft size={24} />
-                </button>
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Record Sale</h1>
+        <PageLayout>
+            <header style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-lg)' }}>
+                <AppIconButton icon={ArrowLeft} onClick={() => onNavigate('dashboard')} size={24} color="var(--text-primary)" />
+                <h1 className="text-h1">Record Sale</h1>
             </header>
 
-            <div className="glass-panel" style={{ padding: '2rem' }}>
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <AppCard style={{ padding: 'var(--spacing-lg)' }}>
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
 
                     {/* Transaction Details */}
                     <div>
-                        <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '0.5rem', color: 'var(--text-primary)' }}>Transaction Details</h3>
+                        <AppSectionHeader title="Transaction Details" />
 
                         {/* Product Selection */}
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Select Product</label>
-                            <select
-                                className="input-field"
-                                value={selectedProductId}
-                                onChange={handleProductChange}
-                                style={{ cursor: 'pointer' }}
-                            >
-                                <option value="">-- Choose Item --</option>
-                                {products.map(p => (
-                                    <option key={p.id} value={p.id}>
-                                        {p.name} (Stock: {p.quantity}) - ${p.selling_price}
-                                    </option>
-                                ))}
-                            </select>
+                        <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                            <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Select Product</label>
+                            <div style={{ position: 'relative' }}>
+                                <Package size={18} style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', left: '1rem', color: 'var(--text-secondary)' }} />
+                                <select
+                                    className="input-field"
+                                    value={selectedProductId}
+                                    onChange={handleProductChange}
+                                    style={{ cursor: 'pointer', paddingLeft: '2.5rem' }}
+                                >
+                                    <option value="">-- Choose Item --</option>
+                                    {products.map(p => (
+                                        <option key={p.id} value={p.id}>
+                                            {p.name} (Stock: {p.quantity}) - ${p.selling_price}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
                             {errors.product && <span style={{ color: 'var(--accent-danger)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.product}</span>}
                         </div>
 
                         {/* Quantity Input */}
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Quantity to Sell</label>
-                            <input
-                                type="number"
-                                className="input-field"
-                                value={quantity}
-                                onChange={handleQuantityChange}
-                                placeholder="0"
-                                min="1"
-                            />
-                            {errors.quantity && <span style={{ color: 'var(--accent-danger)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.quantity}</span>}
-                        </div>
+                        <AppInput
+                            label="Quantity to Sell"
+                            type="number"
+                            value={quantity}
+                            onChange={handleQuantityChange}
+                            placeholder="0"
+                            min="1"
+                            error={errors.quantity}
+                            icon={Hash}
+                        />
                     </div>
 
                     {/* Summary */}
                     <div>
-                        <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '0.5rem', color: 'var(--text-primary)' }}>Summary</h3>
+                        <AppSectionHeader title="Summary" />
 
                         {/* Calculations Display */}
                         <div style={{
                             background: 'var(--bg-secondary)',
-                            padding: '1.25rem',
+                            padding: 'var(--spacing-md)',
                             borderRadius: 'var(--radius-md)',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '0.75rem'
+                            gap: 'var(--spacing-sm)'
                         }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Total Price:</span>
-                                <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>${calculations.total.toFixed(2)}</span>
+                                <span className="text-h2" style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>${calculations.total.toFixed(2)}</span>
                             </div>
                             <hr style={{ border: 'none', borderTop: '1px solid rgba(0,0,0,0.05)' }} />
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.875rem' }}>
@@ -130,14 +128,13 @@ const RecordSale = ({ onNavigate }) => {
                         </div>
                     </div>
 
-                    <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem', width: '100%', padding: '1rem', fontSize: '1rem', borderRadius: 'var(--radius-md)' }}>
-                        <CheckCircle size={20} style={{ marginRight: '0.5rem' }} />
+                    <AppButton type="submit" icon={CheckCircle} fullWidth>
                         Confirm Sale
-                    </button>
+                    </AppButton>
 
                 </form>
-            </div>
-        </div>
+            </AppCard>
+        </PageLayout>
     );
 };
 

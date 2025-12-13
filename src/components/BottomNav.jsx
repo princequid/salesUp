@@ -48,7 +48,11 @@ const BottomNav = ({ currentScreen, onNavigate }) => {
                             width: '100%'
                         }}
                     >
-                        <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+                        <Icon
+                            size={24}
+                            strokeWidth={isActive ? 2.5 : 2}
+                            fill={isActive ? "currentColor" : "none"}
+                        />
                         <span style={{ fontSize: '0.7rem' }}>{tab.label}</span>
                     </button>
                 );

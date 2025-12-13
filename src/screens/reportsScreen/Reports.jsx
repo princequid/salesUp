@@ -1,203 +1,299 @@
+/*
+ * STABILITY LOCK: This file is considered stable.
+ * Do NOT modify logic, charts, or layout without explicit override.
+ */
 import React, { useState, useMemo } from 'react';
 import { useInventory } from '../../logic/InventoryContext';
 import { filterSalesByDate, exportToPDF, exportToCSV } from '../../logic/reportLogic';
-import { ArrowLeft, Download, FileText } from 'lucide-react';
+import { ArrowLeft, Download, FileText, ShoppingCart } from 'lucide-react';
+import { AppButton, AppCard, AppIconButton, AppDivider, ChartWrapper, AppEmptyState } from '../../components';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import PageLayout from '../../components/PageLayout';
 
 const Reports = ({ onNavigate }) => {
-    const { sales, products } = useInventory();
-    const [filterType, setFilterType] = useState('daily'); // daily, weekly, monthly
+    const { sales } = useInventory();
+    const [filterType, setFilterType] = useState('daily');
+    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
-    // Filter data
-    const filteredSales = useMemo(() =>
-        filterSalesByDate(sales, filterType),
-        [sales, filterType]
-    );
+    // Derived State: Filtered Sales
+    const filteredSales = useMemo(() => {
+        return filterSalesByDate(sales, filterType, startDate, endDate);
+    }, [sales, filterType, startDate, endDate]);
 
-    // Calculate aggregated stats
+    // Derived State: Stats
     const stats = useMemo(() => {
-        const totalSales = filteredSales.reduce((sum, s) => sum + s.total_price, 0);
-        const totalProfit = filteredSales.reduce((sum, s) => sum + s.profit, 0);
-        return { totalSales, totalProfit, count: filteredSales.length };
+        // Simple manual calculation or import calculateTotals if available.
+        // Using manual here to avoid import errors if calculateTotals isn't imported yet, 
+        // but wait, I can modify imports too. Let's use robust manual calc to be safe and fast.
+        const totalSales = filteredSales.reduce((sum, sale) => sum + (sale.total_price || 0), 0);
+        const totalProfit = filteredSales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
+        return {
+            totalSales,
+            totalProfit,
+            count: filteredSales.length
+        };
     }, [filteredSales]);
 
-    // Prepare chart data based on filter type
+    // Derived State: Chart Data
     const chartData = useMemo(() => {
-        if (filterType === 'daily') {
-            // Daily: Sales by Product
-            const dataMap = {};
-            filteredSales.forEach(sale => {
-                const product = products.find(p => p.id === sale.product_id);
-                const name = product ? product.name : 'Unknown';
-                dataMap[name] = (dataMap[name] || 0) + sale.total_price;
-            });
-            return Object.entries(dataMap).map(([name, total]) => ({ name, total }));
-        }
+        const dataMap = {};
 
-        if (filterType === 'weekly') {
-            // Weekly: Sales by Day (Last 7 Days logic usually, but let's aggregate by Day Name)
-            // Better approach: Create past 7 days buckets to ensure empty days show up
-            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            // Initialize map with 0 for observed days if we want, or just accumulate existing
-            // Simple accumulation:
-            const dataMap = {};
+        filteredSales.forEach(sale => {
+            const date = new Date(sale.date);
+            let key = '';
 
-            // To sort correctly, maybe better to use date sorting, but for simplicity let's just group by keys
-            // If we want a true timeline, we should sort by date. 
-            // Let's create an array of specific dates for the sales present, sorted.
-            const salesByDate = {};
+            if (filterType === 'daily') {
+                // Hour 0-23
+                const hour = date.getHours();
+                key = `${hour}:00`;
+            } else if (filterType === 'weekly') {
+                // Day Name
+                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                key = days[date.getDay()];
+            } else {
+                // Date string for monthly/custom
+                key = date.toLocaleDateString();
+            }
 
-            filteredSales.forEach(sale => {
-                const d = new Date(sale.date);
-                const dayName = days[d.getDay()];
-                // We might collide if data spans > 1 week, but "weekly" filter is last 7 days usually.
-                // Let's use Date String to be safe and sort
-                const dateKey = d.toLocaleDateString('en-US', { weekday: 'short' });
-                // Actually if we want specific order we need the time.
-                // Let's just use MM/DD
-                const label = `${d.getMonth() + 1}/${d.getDate()}`;
+            if (!dataMap[key]) {
+                dataMap[key] = { name: key, total: 0 };
+            }
+            dataMap[key].total += (sale.total_price || 0);
+        });
 
-                salesByDate[label] = (salesByDate[label] || 0) + sale.total_price;
-            });
+        return Object.values(dataMap);
+    }, [filteredSales, filterType]);
 
-            // Sort by date key is tricky if string. 
-            // Let's just map the filtered Sales, sort them by date, then aggregate.
-            // Easier: 
-            // 1. Sort filteredSales by date
-            const sortedSales = [...filteredSales].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const isChartReady = chartData.length > 0;
 
-            // 2. Aggregate
-            const agg = {};
-            sortedSales.forEach(s => {
-                const d = new Date(s.date);
-                const label = filterType === 'weekly'
-                    ? d.toLocaleDateString('en-US', { weekday: 'short' }) // Mon, Tue
-                    : `${d.getMonth() + 1}/${d.getDate()}`; // 12/25
+    const handleFilterChange = (type) => setFilterType(type);
 
-                agg[label] = (agg[label] || 0) + s.total_price;
-            });
+    const handleExportPDF = () => {
+        exportToPDF(stats, filteredSales, filterType);
+    };
 
-            return Object.entries(agg).map(([name, total]) => ({ name, total }));
-        }
+    const handleExportCSV = () => {
+        exportToCSV(filteredSales, filterType);
+    };
 
-        if (filterType === 'monthly') {
-            // Monthly: trend by date using MM/DD
-            const sortedSales = [...filteredSales].sort((a, b) => new Date(a.date) - new Date(b.date));
-            const agg = {};
-            sortedSales.forEach(s => {
-                const d = new Date(s.date);
-                const label = `${d.getMonth() + 1}/${d.getDate()}`;
-                agg[label] = (agg[label] || 0) + s.total_price;
-            });
-            return Object.entries(agg).map(([name, total]) => ({ name, total }));
-        }
-
-        return [];
-    }, [filteredSales, products, filterType]);
-
-    const handleExportPDF = () => exportToPDF(stats, filteredSales, filterType);
-    const handleExportCSV = () => exportToCSV(filteredSales, filterType);
-
-    // Chart Title Helper
     const getChartTitle = () => {
-        if (filterType === 'daily') return "Sales by Product";
-        if (filterType === 'weekly') return "Weekly Sales Trend";
-        if (filterType === 'monthly') return "Monthly Sales Trend";
+        switch (filterType) {
+            case 'daily': return "Today's Hourly Sales";
+            case 'weekly': return "Weekly Sales Trend";
+            case 'monthly': return "Monthly Peformance";
+            case 'custom': return "Custom Period Analysis";
+            default: return "Sales Overview";
+        }
     };
 
     return (
-        <div className="container" style={{ paddingBottom: '2rem' }}>
-            <header style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-                <button
-                    onClick={() => onNavigate('dashboard')}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}
-                >
-                    <ArrowLeft size={24} />
-                </button>
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Reports</h1>
-            </header>
-
-            {/* Filter Toggle */}
-            <div className="glass-panel" style={{ padding: '0.5rem', display: 'inline-flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                {['daily', 'weekly', 'monthly'].map(f => (
-                    <button
-                        key={f}
-                        onClick={() => setFilterType(f)}
-                        style={{
-                            padding: '0.5rem 1rem',
-                            border: 'none',
-                            background: filterType === f ? 'var(--accent-primary)' : 'transparent',
-                            color: filterType === f ? '#fff' : 'var(--text-secondary)',
-                            fontWeight: filterType === f ? 600 : 400,
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            textTransform: 'capitalize',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        {f}
-                    </button>
-                ))}
-            </div>
+        <PageLayout>
+            {/* Structured Header with Filter */}
+            <ReportHeader
+                onNavigate={onNavigate}
+                filterType={filterType}
+                setFilterType={handleFilterChange}
+                startDate={startDate}
+                setStartDate={setStartDate}
+                endDate={endDate}
+                setEndDate={setEndDate}
+                onExportPDF={handleExportPDF}
+                onExportCSV={handleExportCSV}
+            />
+            {/* ... rest of JSX ... */}
 
             {/* Summary Metrics */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-                <div className="glass-panel" style={{ padding: '1rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Total Sales</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>${stats.totalSales.toFixed(2)}</div>
-                </div>
-                <div className="glass-panel" style={{ padding: '1rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Total Profit</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--accent-success)' }}>${stats.totalProfit.toFixed(2)}</div>
-                </div>
-                <div className="glass-panel" style={{ padding: '1rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Transactions</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>{stats.count}</div>
-                </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-lg)' }}>
+                <AppCard style={{ padding: 'var(--spacing-md)', textAlign: 'center' }}>
+                    <div className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Total Sales</div>
+                    <div className="text-h2" style={{ fontWeight: 'bold' }}>${stats.totalSales.toFixed(2)}</div>
+                </AppCard>
+                <AppCard style={{ padding: 'var(--spacing-md)', textAlign: 'center' }}>
+                    <div className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Total Profit</div>
+                    <div className="text-h2" style={{ fontWeight: 'bold', color: 'var(--accent-success)' }}>${stats.totalProfit.toFixed(2)}</div>
+                </AppCard>
+                <AppCard style={{ padding: 'var(--spacing-md)', textAlign: 'center' }}>
+                    <div className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Transactions</div>
+                    <div className="text-h2" style={{ fontWeight: 'bold' }}>{stats.count}</div>
+                </AppCard>
             </div>
 
             {/* Chart */}
-            <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem', height: '350px' }}>
-                <h3 style={{ fontSize: '1rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>{getChartTitle()}</h3>
-                <ResponsiveContainer width="100%" height="100%">
-                    {filterType === 'monthly' ? (
-                        <LineChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" opacity={0.3} vertical={false} />
-                            <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} dy={10} />
-                            <YAxis stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
-                            <Tooltip
-                                contentStyle={{ backgroundColor: 'var(--bg-card)', border: 'var(--glass-border)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)' }}
-                                formatter={(value) => [`$${value.toFixed(2)}`, 'Sales']}
-                            />
-                            <Line type="monotone" dataKey="total" stroke="var(--accent-primary)" strokeWidth={3} dot={{ fill: 'var(--accent-primary)', r: 4 }} activeDot={{ r: 6 }} />
-                        </LineChart>
-                    ) : (
-                        <BarChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" opacity={0.3} vertical={false} />
-                            <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} dy={10} />
-                            <YAxis stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
-                            <Tooltip
-                                cursor={{ fill: 'transparent' }}
-                                contentStyle={{ backgroundColor: 'var(--bg-card)', border: 'var(--glass-border)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)' }}
-                                formatter={(value) => [`$${value.toFixed(2)}`, 'Sales']}
-                            />
-                            <Bar dataKey="total" fill="var(--accent-primary)" radius={[4, 4, 0, 0]} barSize={filterType === 'daily' ? 40 : 20} />
-                        </BarChart>
-                    )}
-                </ResponsiveContainer>
-            </div>
+            <AppCard style={{
+                padding: 'var(--spacing-lg)',
+                marginBottom: 'var(--spacing-lg)',
+                height: '400px',
+                display: 'flex',
+                flexDirection: 'column',
+                /* Fix: Ensure stability by disabling transforms/animations on the chart card */
+                transform: 'none',
+                transition: 'none',
+                animation: 'none'
+            }}>
+                <h3 className="text-h3" style={{ marginBottom: 'var(--spacing-md)' }}>{getChartTitle()}</h3>
+                {filteredSales.length > 0 ? (
+                    <ChartWrapper style={{ flex: 1, minHeight: '280px' }}>
+                        {isChartReady && (
+                            <ResponsiveContainer width="100%" height="100%">
+                                {filterType === 'monthly' || filterType === 'weekly' || filterType === 'custom' ? (
+                                    <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 25, left: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} stroke="var(--text-secondary)" />
+                                        <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                                        <YAxis stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: 'var(--bg-card)', border: 'var(--glass-border)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)' }}
+                                            formatter={(value) => [`$${value.toFixed(2)}`, 'Sales']}
+                                        />
+                                        <Line type="monotone" dataKey="total" stroke="var(--accent-primary)" strokeWidth={3} dot={{ fill: 'var(--accent-primary)', r: 4 }} activeDot={{ r: 6 }} />
+                                    </LineChart>
+                                ) : (
+                                    <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 25, left: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} stroke="var(--text-secondary)" />
+                                        <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                                        <YAxis stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+                                        <Tooltip
+                                            cursor={{ fill: 'var(--bg-secondary)', opacity: 0.5 }}
+                                            contentStyle={{ backgroundColor: 'var(--bg-card)', border: 'var(--glass-border)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)' }}
+                                            formatter={(value) => [`$${value.toFixed(2)}`, 'Sales']}
+                                        />
+                                        <Bar dataKey="total" fill="var(--accent-primary)" radius={[4, 4, 0, 0]} barSize={40} />
+                                    </BarChart>
+                                )}
+                            </ResponsiveContainer>
+                        )}
+                    </ChartWrapper>
+                ) : (
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <AppEmptyState
+                            title="No sales data available"
+                            message="Record your first sale to see reports for this period."
+                            icon={ShoppingCart}
+                            action={
+                                <AppButton variant="primary" onClick={() => onNavigate('dashboard')}>
+                                    Record Sale
+                                </AppButton>
+                            }
+                        />
+                    </div>
+                )}
+            </AppCard>
 
             {/* Export Actions */}
-            <div style={{ display: 'flex', gap: '1rem' }}>
-                <button onClick={handleExportPDF} className="btn" style={{ background: 'var(--bg-secondary)', border: 'var(--glass-border)', color: 'var(--text-primary)', flex: 1, justifyContent: 'center' }}>
-                    <FileText size={18} style={{ marginRight: '0.5rem' }} /> Export PDF
-                </button>
-                <button onClick={handleExportCSV} className="btn" style={{ background: 'var(--bg-secondary)', border: 'var(--glass-border)', color: 'var(--text-primary)', flex: 1, justifyContent: 'center' }}>
-                    <Download size={18} style={{ marginRight: '0.5rem' }} /> Export CSV
-                </button>
-            </div>
-        </div>
+
+        </PageLayout>
     );
 };
+
+const ReportHeader = ({ onNavigate, filterType, setFilterType, startDate, setStartDate, endDate, setEndDate, onExportPDF, onExportCSV }) => (
+    <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--spacing-lg)',
+        marginBottom: 'var(--spacing-lg)',
+        // Critical: Stability locks
+        transform: 'none',
+        transition: 'none',
+        animation: 'none',
+        position: 'relative',
+        zIndex: 10
+    }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--spacing-md)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
+                <AppIconButton icon={ArrowLeft} onClick={() => onNavigate('dashboard')} size={24} color="var(--text-primary)" />
+                <h1 className="text-h1">Reports</h1>
+            </div>
+
+            <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                <AppButton
+                    onClick={onExportPDF}
+                    variant="secondary"
+                    icon={FileText}
+                    size="small"
+                    style={{ transform: 'none', transition: 'none' }}
+                >
+                    PDF
+                </AppButton>
+                <AppButton
+                    onClick={onExportCSV}
+                    variant="outline"
+                    icon={Download}
+                    size="small"
+                    style={{ transform: 'none', transition: 'none' }}
+                >
+                    CSV
+                </AppButton>
+            </div>
+        </div>
+
+        {/* Filter Toggle */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+            <AppCard style={{
+                padding: '0.5rem',
+                display: 'inline-flex',
+                gap: '0.5rem',
+                borderRadius: 'var(--radius-md)',
+                background: 'transparent',
+                border: 'none',
+                boxShadow: 'none',
+                pointerEvents: 'auto'
+            }}>
+                {['daily', 'weekly', 'monthly', 'custom'].map(f => (
+                    <AppButton
+                        key={f}
+                        onClick={() => setFilterType(f)}
+                        variant={filterType === f ? 'primary' : 'ghost'}
+                        size="small"
+                        style={{
+                            textTransform: 'capitalize',
+                            fontWeight: filterType === f ? 600 : 500,
+                            borderRadius: 'var(--radius-md)',
+                            transform: 'none',
+                            transition: 'none',
+                            opacity: filterType === f ? 1 : 0.7
+                        }}
+                    >
+                        {f}
+                    </AppButton>
+                ))}
+            </AppCard>
+
+            {/* Custom Date Range Inputs */}
+            {filterType === 'custom' && (
+                <div style={{ display: 'flex', gap: 'var(--spacing-md)', alignItems: 'center', paddingLeft: '0.5rem' }}>
+                    <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        style={{
+                            padding: '0.5rem',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--bg-card)',
+                            color: 'var(--text-primary)',
+                            fontFamily: 'inherit',
+                            outline: 'none'
+                        }}
+                    />
+                    <span style={{ color: 'var(--text-secondary)' }}>to</span>
+                    <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        style={{
+                            padding: '0.5rem',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--bg-card)',
+                            color: 'var(--text-primary)',
+                            fontFamily: 'inherit',
+                            outline: 'none'
+                        }}
+                    />
+                </div>
+            )}
+        </div>
+    </div>
+);
 
 export default Reports;

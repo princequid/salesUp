@@ -1,7 +1,9 @@
 import React from 'react';
 import { useInventory } from '../../logic/InventoryContext';
 import { getLowStockItems } from '../../logic/stockLogic';
-import { ArrowLeft, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react';
+import { AppButton, AppBadge, AppEmptyState, AppIconButton, AppCard } from '../../components';
+import PageLayout from '../../components/PageLayout';
 
 const LowStock = ({ onNavigate }) => {
     const { products, settings, updateProduct } = useInventory();
@@ -22,73 +24,58 @@ const LowStock = ({ onNavigate }) => {
     };
 
     return (
-        <div style={{ padding: '1.5rem', maxWidth: '800px', margin: '0 auto' }}>
-            <header style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-                <button
-                    onClick={() => onNavigate('dashboard')}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}
-                >
-                    <ArrowLeft size={24} />
-                </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <PageLayout style={{ paddingBottom: 'var(--spacing-xl)' }}>
+            <header style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-lg)' }}>
+                <AppIconButton icon={ArrowLeft} onClick={() => onNavigate('dashboard')} size={24} color="var(--text-primary)" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
                     <AlertTriangle size={24} color="var(--accent-warning)" />
-                    <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Low Stock Alerts</h1>
+                    <h1 className="text-h1">Low Stock Alerts</h1>
                 </div>
             </header>
 
-            <div className="glass-panel" style={{ overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                        <tr style={{ background: 'var(--bg-secondary)' }}>
-                            <th style={{ textAlign: 'left', padding: '1rem' }}>Product</th>
-                            <th style={{ textAlign: 'center', padding: '1rem' }}>Current Stock</th>
-                            <th style={{ textAlign: 'center', padding: '1rem' }}>Satus</th>
-                            <th style={{ textAlign: 'right', padding: '1rem' }}>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {lowStockItems.length > 0 ? (
-                            lowStockItems.map(item => (
-                                <tr key={item.id} style={{ borderBottom: '1px solid #E2E8F0' }}>
-                                    <td style={{ padding: '1rem', fontWeight: '500' }}>{item.name}</td>
-                                    <td style={{ textAlign: 'center', padding: '1rem', fontWeight: 'bold', fontSize: '1.1rem' }}>
+            {lowStockItems.length > 0 ? (
+                <div className="glass-panel" style={{ overflow: 'hidden', padding: 0 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ background: 'var(--bg-secondary)' }}>
+                                <th className="text-sm" style={{ textAlign: 'left', padding: 'var(--spacing-md)', color: 'var(--text-secondary)' }}>Product</th>
+                                <th className="text-sm" style={{ textAlign: 'center', padding: 'var(--spacing-md)', color: 'var(--text-secondary)' }}>Current Stock</th>
+                                <th className="text-sm" style={{ textAlign: 'center', padding: 'var(--spacing-md)', color: 'var(--text-secondary)' }}>Status</th>
+                                <th className="text-sm" style={{ textAlign: 'right', padding: 'var(--spacing-md)', color: 'var(--text-secondary)' }}>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {lowStockItems.map((item, index) => (
+                                <tr key={item.id} style={{ borderBottom: index < lowStockItems.length - 1 ? '1px solid #E2E8F0' : 'none' }}>
+                                    <td style={{ padding: 'var(--spacing-md)', fontWeight: 500 }}>{item.name}</td>
+                                    <td style={{ textAlign: 'center', padding: 'var(--spacing-md)', fontWeight: 'bold', fontSize: '1.1rem' }}>
                                         {item.quantity}
                                     </td>
-                                    <td style={{ textAlign: 'center', padding: '1rem' }}>
-                                        <span style={{
-                                            background: '#FEE2E2',
-                                            color: 'var(--accent-danger)',
-                                            padding: '0.25rem 0.75rem',
-                                            borderRadius: '1rem',
-                                            fontSize: '0.75rem',
-                                            fontWeight: '600'
-                                        }}>
-                                            LOW
-                                        </span>
+                                    <td style={{ textAlign: 'center', padding: 'var(--spacing-md)' }}>
+                                        <AppBadge variant="danger">LOW</AppBadge>
                                     </td>
-                                    <td style={{ textAlign: 'right', padding: '1rem' }}>
-                                        <button
-                                            className="btn btn-primary"
-                                            style={{ padding: '0.5rem 0.75rem', fontSize: '0.75rem' }}
+                                    <td style={{ textAlign: 'right', padding: 'var(--spacing-md)' }}>
+                                        <AppButton
+                                            size="small"
+                                            icon={RefreshCw}
                                             onClick={() => handleRestock(item)}
                                         >
-                                            <RefreshCw size={14} style={{ marginRight: '0.25rem' }} /> Restock
-                                        </button>
+                                            Restock
+                                        </AppButton>
                                     </td>
                                 </tr>
-                            ))
-                        ) : (
-                            <tr>
-                                <td colSpan="4" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
-                                    <div style={{ marginBottom: '1rem' }}>All stocked up!</div>
-                                    <div style={{ fontSize: '0.875rem' }}>No items below limit ({settings.lowStockThreshold})</div>
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            ) : (
+                <AppEmptyState
+                    title="All Stocked Up!"
+                    message={`Great job! No items are below your alert threshold of ${settings.lowStockThreshold}.`}
+                    icon={CheckCircle}
+                />
+            )}
+        </PageLayout>
     );
 };
 

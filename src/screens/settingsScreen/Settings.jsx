@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useInventory } from '../../logic/InventoryContext';
-import { ArrowLeft, Save, Building, Bell, DollarSign, Moon } from 'lucide-react';
+import { ArrowLeft, Save, Building, Bell, Moon, Smartphone } from 'lucide-react';
+import { AppButton, AppCard, AppInput, AppSectionHeader, AppIconButton } from '../../components';
+import PageLayout from '../../components/PageLayout';
 
 const Settings = ({ onNavigate }) => {
     const { settings, updateSettings } = useInventory();
@@ -10,7 +12,7 @@ const Settings = ({ onNavigate }) => {
         businessName: settings.businessName || '',
         lowStockThreshold: settings.lowStockThreshold || 5,
         currency: settings.currency || 'USD',
-        theme: settings.theme || 'dark'
+        theme: settings.theme || 'system'
     });
 
     const handleChange = (e) => {
@@ -35,70 +37,53 @@ const Settings = ({ onNavigate }) => {
         });
 
         alert("Settings Saved Successfully!");
-
-        // If theme changed, we might want to apply classes here or in App endpoint
-        // For MVP we just save it.
     };
 
     return (
-        <div className="container">
-            <header style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-                <button
-                    onClick={() => onNavigate('dashboard')}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}
-                >
-                    <ArrowLeft size={24} />
-                </button>
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Settings</h1>
+        <PageLayout>
+            <header style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-lg)' }}>
+                <AppIconButton icon={ArrowLeft} onClick={() => onNavigate('dashboard')} size={24} color="var(--text-primary)" />
+                <h1 className="text-h1">Settings</h1>
             </header>
 
-            <div className="glass-panel" style={{ padding: '2rem' }}>
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <AppCard style={{ padding: 'var(--spacing-lg)' }}>
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
 
                     {/* Business Profile */}
                     <div>
-                        <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '0.5rem', color: 'var(--text-primary)' }}>Business Profile</h3>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Business Name</label>
-                        <div style={{ position: 'relative' }}>
-                            <Building size={18} style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', left: '1rem', color: 'var(--text-secondary)' }} />
-                            <input
-                                type="text"
-                                name="businessName"
-                                className="input-field"
-                                value={formData.businessName}
-                                onChange={handleChange}
-                                style={{ paddingLeft: '2.5rem' }}
-                                placeholder="e.g. My Awesome Store"
-                            />
-                        </div>
+                        <AppSectionHeader title="Business Profile" />
+                        <AppInput
+                            label="Business Name"
+                            name="businessName"
+                            value={formData.businessName}
+                            onChange={handleChange}
+                            placeholder="e.g. My Awesome Store"
+                            icon={Building}
+                        />
                     </div>
 
                     {/* Inventory Settings */}
                     <div>
-                        <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '0.5rem', color: 'var(--text-primary)' }}>Notifications</h3>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Low Stock Threshold</label>
-                        <div style={{ position: 'relative' }}>
-                            <Bell size={18} style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', left: '1rem', color: 'var(--text-secondary)' }} />
-                            <input
-                                type="number"
-                                name="lowStockThreshold"
-                                className="input-field"
-                                value={formData.lowStockThreshold}
-                                onChange={handleChange}
-                                min="1"
-                                style={{ paddingLeft: '2.5rem' }}
-                            />
-                        </div>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Alert when stock quantity falls below this number.</p>
+                        <AppSectionHeader title="Notifications" />
+                        <AppInput
+                            label="Low Stock Threshold"
+                            name="lowStockThreshold"
+                            type="number"
+                            value={formData.lowStockThreshold}
+                            onChange={handleChange}
+                            min="1"
+                            icon={Bell}
+                        />
+                        <p className="text-caption" style={{ color: 'var(--text-secondary)', marginTop: '-0.5rem' }}>Alert when stock quantity falls below this number.</p>
                     </div>
 
                     {/* App Preferences */}
                     <div>
-                        <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '0.5rem', color: 'var(--text-primary)' }}>Preferences</h3>
+                        <AppSectionHeader title="Preferences" />
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--spacing-lg)' }}>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Currency</label>
+                                <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Currency</label>
                                 <select
                                     name="currency"
                                     className="input-field"
@@ -114,29 +99,32 @@ const Settings = ({ onNavigate }) => {
                                 </select>
                             </div>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Theme</label>
-                                <select
-                                    name="theme"
-                                    className="input-field"
-                                    value={formData.theme}
-                                    onChange={handleChange}
-                                    style={{ cursor: 'pointer' }}
-                                >
-                                    <option value="light">Light Mode</option>
-                                    <option value="dark">Dark Mode</option>
-                                </select>
+                                <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Theme</label>
+                                <div style={{ position: 'relative' }}>
+                                    <Moon size={18} style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', left: '1rem', color: 'var(--text-secondary)' }} />
+                                    <select
+                                        name="theme"
+                                        className="input-field"
+                                        value={formData.theme}
+                                        onChange={handleChange}
+                                        style={{ cursor: 'pointer', paddingLeft: '2.5rem' }}
+                                    >
+                                        <option value="light">Light Mode ☀️</option>
+                                        <option value="dark">Dark Mode 🌙</option>
+                                        <option value="system">System Auto 🖥️</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem', width: '100%', padding: '0.75rem' }}>
-                        <Save size={18} style={{ marginRight: '0.5rem' }} />
+                    <AppButton type="submit" icon={Save} fullWidth>
                         Save Settings
-                    </button>
+                    </AppButton>
 
                 </form>
-            </div>
-        </div>
+            </AppCard>
+        </PageLayout>
     );
 };
 

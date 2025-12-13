@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useInventory } from '../../logic/InventoryContext';
 import { calculateDailyStats, getTopSellingItems } from '../../logic/reportLogic';
 import { TrendingUp, DollarSign, AlertTriangle, Plus, ShoppingCart, FileText, Calculator, Settings } from 'lucide-react';
+import PageLayout from '../../components/PageLayout';
 
 const Dashboard = ({ onNavigate }) => {
     const { sales, products, settings } = useInventory();
@@ -17,7 +18,7 @@ const Dashboard = ({ onNavigate }) => {
     );
 
     return (
-        <div className="container" style={{ paddingBottom: '6rem' }}>
+        <PageLayout>
             {/* Header */}
             <header style={{ marginBottom: 'var(--spacing-lg)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
@@ -30,30 +31,30 @@ const Dashboard = ({ onNavigate }) => {
             </header>
 
             {/* Summary Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginBottom: 'var(--spacing-lg)' }}>
-                <div className="glass-panel" style={{ padding: '1.25rem', borderLeft: '4px solid var(--accent-primary)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
-                        <DollarSign size={18} />
-                        <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Sales Today</span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-lg)' }}>
+                <div className="glass-panel" style={{ padding: '1.25rem', minHeight: '150px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--accent-primary)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-sm)', color: 'var(--text-secondary)' }}>
+                        <DollarSign size={24} color="var(--accent-primary)" />
+                        <span className="truncate" style={{ fontSize: 'var(--font-sm)', fontWeight: 600 }}>Sales Today</span>
                     </div>
-                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>${stats.totalSales.toFixed(2)}</div>
+                    <div className="truncate" style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>${stats.totalSales.toFixed(2)}</div>
                 </div>
 
-                <div className="glass-panel" style={{ padding: '1.25rem', borderLeft: '4px solid var(--accent-success)' }}>
+                <div className="glass-panel" style={{ padding: '1.25rem', minHeight: '150px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--accent-success)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
-                        <TrendingUp size={18} />
-                        <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Profit Today</span>
+                        <TrendingUp size={24} color="var(--accent-success)" />
+                        <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600 }}>Profit Today</span>
                     </div>
                     <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>${stats.totalProfit.toFixed(2)}</div>
                 </div>
 
                 <div className="glass-panel"
-                    style={{ padding: '1.25rem', cursor: 'pointer', borderLeft: '4px solid var(--accent-danger)' }}
+                    style={{ padding: '1.25rem', minHeight: '150px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', cursor: 'pointer', borderLeft: '4px solid var(--accent-danger)' }}
                     onClick={() => onNavigate('lowStock')}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
-                        <AlertTriangle size={18} />
-                        <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Low Stock</span>
+                        <AlertTriangle size={24} color="var(--accent-danger)" />
+                        <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600 }}>Low Stock</span>
                     </div>
                     <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--accent-danger)' }}>{stats.lowStockCount}</div>
                 </div>
@@ -92,7 +93,7 @@ const Dashboard = ({ onNavigate }) => {
                 </div>
             </div>
 
-        </div>
+        </PageLayout>
     );
 };
 
