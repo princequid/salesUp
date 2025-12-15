@@ -60,8 +60,14 @@ export const calculateDailyStats = (sales, products, lowStockThreshold) => {
 };
 
 export const getTopSellingItems = (sales, products) => {
-    const salesByProduct = sales.reduce((acc, sale) => {
-        acc[sale.product_id] = (acc[sale.product_id] || 0) + sale.quantity;
+    // Determine if sales are flat or nested (transactions)
+    // New structure has 'items' array
+    const allItems = sales.flatMap(sale => sale.items || [sale]);
+
+    const salesByProduct = allItems.reduce((acc, item) => {
+        // Handle undefined or missing product_id/productId
+        const pId = item.productId || item.product_id;
+        acc[pId] = (acc[pId] || 0) + item.quantity;
         return acc;
     }, {});
 
@@ -81,6 +87,7 @@ export const getTopSellingItems = (sales, products) => {
 };
 
 // Exports
+// Exports
 export const exportToPDF = (stats, sales, filterType) => {
     const doc = new jsPDF();
 
@@ -88,15 +95,37 @@ export const exportToPDF = (stats, sales, filterType) => {
     doc.text(`Total Sales: $${stats.totalSales.toFixed(2)}`, 14, 30);
     doc.text(`Total Profit: $${stats.totalProfit.toFixed(2)}`, 14, 40);
 
-    const tableData = sales.map(s => [
-        new Date(s.date).toLocaleDateString(),
-        s.payment_method,
-        s.quantity,
-        `$${s.total_price.toFixed(2)}`
-    ]);
+    const tableData = [];
+
+    // Flatten for the table, but maybe group by transaction?
+    // Let's list items individually for detailed report
+    sales.forEach(s => {
+        const dateStr = new Date(s.date).toLocaleDateString();
+        // Check if new structure
+        if (s.items) {
+            s.items.forEach(item => {
+                tableData.push([
+                    dateStr,
+                    s.payment_method,
+                    item.name || 'Item',
+                    item.quantity,
+                    `$${item.total.toFixed(2)}`
+                ]);
+            });
+        } else {
+            // Fallback for old data
+            tableData.push([
+                dateStr,
+                s.payment_method,
+                'Product', // Name might not be in old record
+                s.quantity,
+                `$${s.total_price.toFixed(2)}`
+            ]);
+        }
+    });
 
     autoTable(doc, {
-        head: [['Date', 'Payment', 'Qty', 'Total']],
+        head: [['Date', 'Payment', 'Item', 'Qty', 'Total']],
         body: tableData,
         startY: 50,
     });
@@ -105,9 +134,20 @@ export const exportToPDF = (stats, sales, filterType) => {
 };
 
 export const exportToCSV = (sales, filterType) => {
-    const csvContent = "data:text/csv;charset=utf-8,"
-        + "Date,Payment Method,Quantity,Total Price,Profit\n"
-        + sales.map(s => `${new Date(s.date).toLocaleDateString()},${s.payment_method},${s.quantity},${s.total_price},${s.profit}`).join("\n");
+    let csvRows = ["Date,Payment Method,Item,Quantity,Total Price,Profit"];
+
+    sales.forEach(s => {
+        const dateStr = new Date(s.date).toLocaleDateString();
+        if (s.items) {
+            s.items.forEach(item => {
+                csvRows.push(`${dateStr},${s.payment_method},"${item.name}",${item.quantity},${item.total},${item.profit}`);
+            });
+        } else {
+            csvRows.push(`${dateStr},${s.payment_method},Product,${s.quantity},${s.total_price},${s.profit}`);
+        }
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
