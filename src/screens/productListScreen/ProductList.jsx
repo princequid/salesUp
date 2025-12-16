@@ -3,6 +3,7 @@ import { useInventory } from '../../logic/InventoryContext';
 import { searchProducts } from '../../logic/productLogic';
 import { ArrowLeft, Search, Trash2, Edit2, Plus, Package } from 'lucide-react';
 import { AppButton, AppCard, AppInput, AppBadge, AppEmptyState, AppIconButton } from '../../components';
+import PermissionGate from '../../components/PermissionGate';
 import PageLayout from '../../components/PageLayout';
 
 const ProductList = ({ onNavigate }) => {
@@ -28,9 +29,11 @@ const ProductList = ({ onNavigate }) => {
                     <AppIconButton icon={ArrowLeft} onClick={() => onNavigate('dashboard')} size={24} color="var(--text-primary)" />
                     <h1 className="text-h1">Inventory</h1>
                 </div>
-                <AppButton onClick={() => onNavigate('addProduct')} icon={Plus}>
-                    Add
-                </AppButton>
+                <PermissionGate action="inventory.create">
+                    <AppButton onClick={() => onNavigate('addProduct')} icon={Plus}>
+                        Add
+                    </AppButton>
+                </PermissionGate>
             </header>
 
             {/* Search Bar */}
@@ -59,9 +62,20 @@ const ProductList = ({ onNavigate }) => {
                             </thead>
                             <tbody>
                                 {filteredProducts.map((product, index) => {
-                                    const isLowStock = product.quantity <= settings.lowStockThreshold;
+                                    const threshold = Number(settings.lowStockThreshold) || 5;
+                                    const qty = Number(product.quantity) || 0;
+                                    const isLowStock = qty <= threshold;
+                                    const isOut = qty === 0;
+                                    const isCritical = qty > 0 && qty <= Math.max(1, Math.floor(threshold / 2));
+                                    const rowBorderColor = isOut
+                                        ? 'var(--accent-danger)'
+                                        : isCritical
+                                            ? 'var(--accent-warning)'
+                                            : isLowStock
+                                                ? 'var(--accent-warning)'
+                                                : 'transparent';
                                     return (
-                                        <tr key={product.id} style={{ borderBottom: index < filteredProducts.length - 1 ? '1px solid #E2E8F0' : 'none' }}>
+                                        <tr key={product.id} style={{ borderBottom: index < filteredProducts.length - 1 ? '1px solid var(--border-color)' : 'none', borderLeft: `4px solid ${rowBorderColor}` }}>
                                             <td style={{ padding: 'var(--spacing-md)' }}>
                                                 <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{product.name}</div>
                                                 <div className="text-caption" style={{ color: 'var(--text-secondary)' }}>{product.category}</div>
@@ -70,14 +84,24 @@ const ProductList = ({ onNavigate }) => {
                                                 ${product.selling_price.toFixed(2)}
                                             </td>
                                             <td style={{ textAlign: 'center', padding: 'var(--spacing-md)' }}>
-                                                <AppBadge variant={isLowStock ? 'danger' : 'success'}>
-                                                    {product.quantity}
-                                                </AppBadge>
+                                                {isOut ? (
+                                                    <AppBadge variant="danger">{qty}</AppBadge>
+                                                ) : isCritical ? (
+                                                    <AppBadge variant="warning">{qty}</AppBadge>
+                                                ) : isLowStock ? (
+                                                    <AppBadge variant="warning">{qty}</AppBadge>
+                                                ) : (
+                                                    <AppBadge variant="success">{qty}</AppBadge>
+                                                )}
                                             </td>
                                             <td style={{ textAlign: 'right', padding: 'var(--spacing-md)' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-sm)' }}>
-                                                    <AppIconButton icon={Edit2} onClick={() => handleEdit(product.id)} size={18} />
-                                                    <AppIconButton icon={Trash2} onClick={() => handleDelete(product.id)} color="var(--accent-danger)" size={18} />
+                                                    <PermissionGate action="inventory.update">
+                                                        <AppIconButton icon={Edit2} onClick={() => handleEdit(product.id)} size={18} />
+                                                    </PermissionGate>
+                                                    <PermissionGate action="inventory.delete">
+                                                        <AppIconButton icon={Trash2} onClick={() => handleDelete(product.id)} color="var(--accent-danger)" size={18} />
+                                                    </PermissionGate>
                                                 </div>
                                             </td>
                                         </tr>
@@ -93,9 +117,11 @@ const ProductList = ({ onNavigate }) => {
                     message={searchQuery ? `We couldn't find any products matching "${searchQuery}"` : "Get started by adding your first product to inventory."}
                     icon={Package}
                     action={!searchQuery && (
-                        <AppButton onClick={() => onNavigate('addProduct')} icon={Plus}>
-                            Add Product
-                        </AppButton>
+                        <PermissionGate action="inventory.create">
+                            <AppButton onClick={() => onNavigate('addProduct')} icon={Plus}>
+                                Add Product
+                            </AppButton>
+                        </PermissionGate>
                     )}
                 />
             )}

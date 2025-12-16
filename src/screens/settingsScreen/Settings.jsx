@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useInventory } from '../../logic/InventoryContext';
-import { useCurrency } from '../../logic/CurrencyContext';
-import { useRole } from '../../logic/RoleContext';
-import { useStore } from '../../logic/StoreContext';
-import { useTheme } from '../../logic/ThemeContext';
+import { useCurrency } from '../../logic/currencyContextImpl';
+import { useRole } from '../../logic/roleUtils';
+import { useStore } from '../../logic/storeContextImpl';
+import { useTheme } from '../../logic/themeContextImpl';
+import PermissionGate from '../../components/PermissionGate';
 import cloudSyncService, { SYNC_STATUS } from '../../logic/cloudSyncService';
 import { ArrowLeft, Save, Building, Bell, Moon, Smartphone, UserCircle, Cloud, CloudOff, RefreshCw, CheckCircle, XCircle, Wifi, WifiOff, Store, Plus, MapPin, Trash2 } from 'lucide-react';
 import { AppButton, AppCard, AppInput, AppSectionHeader, AppIconButton } from '../../components';
 import PageLayout from '../../components/PageLayout';
+import { requestNotificationPermission } from '../../logic/notifications';
 
 const Settings = ({ onNavigate }) => {
     const { settings, updateSettings, syncToCloud, syncFromCloud, getLastSyncTime, getConnectionStatus } = useInventory();
@@ -47,6 +49,11 @@ const Settings = ({ onNavigate }) => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
+    }, []);
+
+    // Ask for notification permission in settings context (non-intrusive)
+    useEffect(() => {
+        requestNotificationPermission();
     }, []);
 
     const handleChange = (e) => {
@@ -142,6 +149,7 @@ const Settings = ({ onNavigate }) => {
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
 
                     {/* Multi-Store Management */}
+                    <PermissionGate action="stores.manage">
                     <div>
                         <AppSectionHeader title="Store Management" />
                         <p className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
@@ -320,6 +328,7 @@ const Settings = ({ onNavigate }) => {
                             </div>
                         )}
                     </div>
+                    </PermissionGate>
 
                     {/* Cloud Sync Section */}
                     <div>
@@ -465,19 +474,23 @@ const Settings = ({ onNavigate }) => {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--spacing-lg)' }}>
                             <div>
                                 <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Currency</label>
-                                <select
-                                    name="currency"
-                                    className="input-field"
-                                    value={formData.currency}
-                                    onChange={handleChange}
-                                    style={{ cursor: 'pointer' }}
-                                >
-                                    <option value="USD">USD ($)</option>
-                                    <option value="GHS">GHS (₵)</option>
-                                    <option value="NGN">NGN (₦)</option>
-                                    <option value="EUR">EUR (€)</option>
-                                    <option value="GBP">GBP (£)</option>
-                                </select>
+                                <PermissionGate action="settings.updateCurrency" fallback={(
+                                    <div className="input-field" style={{ opacity: 0.5 }}>Currency changes disabled for your role</div>
+                                )}>
+                                    <select
+                                        name="currency"
+                                        className="input-field"
+                                        value={formData.currency}
+                                        onChange={handleChange}
+                                        style={{ cursor: 'pointer' }}
+                                    >
+                                        <option value="USD">USD ($)</option>
+                                        <option value="GHS">GHS (₵)</option>
+                                        <option value="NGN">NGN (₦)</option>
+                                        <option value="EUR">EUR (€)</option>
+                                        <option value="GBP">GBP (£)</option>
+                                    </select>
+                                </PermissionGate>
                             </div>
                             <div>
                                 <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Theme</label>
@@ -500,6 +513,7 @@ const Settings = ({ onNavigate }) => {
                     </div>
 
                     {/* User Role Section */}
+                    <PermissionGate action="users.manage">
                     <div>
                         <AppSectionHeader title="User Role" />
                         <p className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
@@ -569,10 +583,13 @@ const Settings = ({ onNavigate }) => {
                             <strong>Current Role:</strong> {userRole === ROLES.ADMIN ? 'Admin (Full Access)' : 'Cashier (POS & Receipts Only)'}
                         </div>
                     </div>
+                    </PermissionGate>
 
-                    <AppButton type="submit" icon={Save} fullWidth>
-                        Save Settings
-                    </AppButton>
+                    <PermissionGate action="settings.save">
+                        <AppButton type="submit" icon={Save} fullWidth>
+                            Save Settings
+                        </AppButton>
+                    </PermissionGate>
 
                 </form>
             </AppCard>

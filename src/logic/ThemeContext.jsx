@@ -1,14 +1,7 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ThemeContext } from './themeContextImpl';
 
 const THEME_STORAGE_KEY = 'salesUp_theme';
-
-export const ThemeContext = createContext();
-
-export const useTheme = () => {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error('useTheme must be used within a ThemeProvider');
-  return ctx;
-};
 
 const resolveSystemTheme = () => {
   if (typeof window === 'undefined') return 'light';
@@ -23,7 +16,9 @@ export const ThemeProvider = ({ children }) => {
         const code = String(saved).trim().toLowerCase();
         if (code === 'light' || code === 'dark' || code === 'system') return code;
       }
-    } catch {}
+    } catch {
+      // ignore
+    }
     return 'system';
   });
 

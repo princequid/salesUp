@@ -27,3 +27,30 @@ export const SCREEN_PERMISSIONS = {
     reports: [ROLES.ADMIN],
     settings: [ROLES.ADMIN]
 };
+
+// Centralized action-level permissions
+// Do not change role definitions; map actions to roles here
+export const ACTION_PERMISSIONS = {
+    // POS actions
+    'pos.checkout': [ROLES.ADMIN, ROLES.CASHIER],
+    'pos.discount': [ROLES.ADMIN],
+    'pos.scan': [ROLES.ADMIN, ROLES.CASHIER],
+    'sales.void': [ROLES.ADMIN],
+
+    // Inventory CRUD
+    'inventory.create': [ROLES.ADMIN],
+    'inventory.import': [ROLES.ADMIN],
+    'inventory.update': [ROLES.ADMIN],
+    'inventory.delete': [ROLES.ADMIN],
+
+    // Reports
+    'reports.export': [ROLES.ADMIN],
+
+    // Settings
+    'settings.save': [ROLES.ADMIN],
+    'settings.updateCurrency': [ROLES.ADMIN],
+
+    // Stores & Users
+    'stores.manage': [ROLES.ADMIN],
+    'users.manage': [ROLES.ADMIN]
+};

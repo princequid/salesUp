@@ -3,7 +3,7 @@ import * as productLogic from './productLogic';
 import * as salesLogic from './salesLogic';
 import * as stockLogic from './stockLogic';
 import cloudSyncService from './cloudSyncService';
-import { useStore } from './StoreContext';
+import { useStore } from './storeContextImpl';
 
 const InventoryContext = createContext();
 
@@ -230,6 +230,96 @@ export const InventoryProvider = ({ children }) => {
   // Selectors Helpers (using stockLogic for consistent filtering)
   const lowStockItems = stockLogic.getLowStockItems(data.products, data.settings.lowStockThreshold);
 
+  // Void a specific transaction by id (audit-safe: marks as voided, restores stock)
+  const voidTransaction = (transactionId, reason = '') => {
+    setData(prev => {
+      const salesIndex = prev.sales.findIndex(s => s.id === transactionId);
+      if (salesIndex === -1) return prev;
+
+      const sale = prev.sales[salesIndex];
+      if (sale.voided) return prev; // already voided
+
+      let updatedProducts = [...prev.products];
+      // Restore stock for each item in the transaction
+      (sale.items || []).forEach(item => {
+        const productId = item.productId || item.product_id;
+        const qty = parseInt(item.quantity, 10) || 0;
+        updatedProducts = stockLogic.increaseStock(updatedProducts, productId, qty);
+      });
+
+      const updatedSales = [...prev.sales];
+      updatedSales[salesIndex] = {
+        ...sale,
+        voided: true,
+        voidReason: reason || '',
+        voidDate: new Date().toISOString()
+      };
+
+      // Mark matching receipt voided (keep record)
+      let updatedTransactions = prev.transactions || [];
+      const txIndex = updatedTransactions.findIndex(r => r.id === transactionId || r.receiptId === transactionId);
+      if (txIndex !== -1) {
+        const r = updatedTransactions[txIndex];
+        updatedTransactions = [...updatedTransactions];
+        updatedTransactions[txIndex] = {
+          ...r,
+          voided: true,
+          voidReason: reason || '',
+          voidDate: new Date().toISOString()
+        };
+      }
+
+      return {
+        ...prev,
+        products: updatedProducts,
+        sales: updatedSales,
+        transactions: updatedTransactions
+      };
+    });
+  };
+
+  // Undo the most recent non-voided transaction
+  const voidLastTransaction = (reason = '') => {
+    setData(prev => {
+      const latest = prev.sales.find(s => !s.voided);
+      if (!latest) return prev;
+
+      let updatedProducts = [...prev.products];
+      (latest.items || []).forEach(item => {
+        const productId = item.productId || item.product_id;
+        const qty = parseInt(item.quantity, 10) || 0;
+        updatedProducts = stockLogic.increaseStock(updatedProducts, productId, qty);
+      });
+
+      const updatedSales = prev.sales.map(s => s.id === latest.id ? ({
+        ...s,
+        voided: true,
+        voidReason: reason || '',
+        voidDate: new Date().toISOString()
+      }) : s);
+
+      let updatedTransactions = prev.transactions || [];
+      const txIndex = updatedTransactions.findIndex(r => r.id === latest.id || r.receiptId === latest.id);
+      if (txIndex !== -1) {
+        const r = updatedTransactions[txIndex];
+        updatedTransactions = [...updatedTransactions];
+        updatedTransactions[txIndex] = {
+          ...r,
+          voided: true,
+          voidReason: reason || '',
+          voidDate: new Date().toISOString()
+        };
+      }
+
+      return {
+        ...prev,
+        products: updatedProducts,
+        sales: updatedSales,
+        transactions: updatedTransactions
+      };
+    });
+  };
+
   // Cloud sync functions
   const syncToCloud = async () => {
     return await cloudSyncService.syncToCloud(data);
@@ -264,6 +354,8 @@ export const InventoryProvider = ({ children }) => {
     recordTransaction,
     updateSettings,
     lowStockItems,
+    voidTransaction,
+    voidLastTransaction,
     syncToCloud,
     syncFromCloud,
     getLastSyncTime,

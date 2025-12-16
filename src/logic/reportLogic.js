@@ -6,27 +6,32 @@ export const filterSalesByDate = (sales, filterType, startDate, endDate) => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Midnight today
 
-    return sales.filter(sale => {
+    return sales
+        .filter(s => !s.voided)
+        .filter(sale => {
         const saleDate = new Date(sale.date);
 
         switch (filterType) {
             case 'daily':
                 return saleDate >= today;
-            case 'weekly':
+            case 'weekly': {
                 const oneWeekAgo = new Date(today);
                 oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
                 return saleDate >= oneWeekAgo;
-            case 'monthly':
+            }
+            case 'monthly': {
                 const oneMonthAgo = new Date(today);
                 oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
                 return saleDate >= oneMonthAgo;
-            case 'custom':
+            }
+            case 'custom': {
                 if (!startDate || !endDate) return true;
                 const start = new Date(startDate);
                 start.setHours(0, 0, 0, 0);
                 const end = new Date(endDate);
                 end.setHours(23, 59, 59, 999);
                 return saleDate >= start && saleDate <= end;
+            }
             default:
                 return true;
         }
@@ -38,9 +43,10 @@ export const getWeeklySales = (sales) => filterSalesByDate(sales, 'weekly');
 export const getMonthlySales = (sales) => filterSalesByDate(sales, 'monthly');
 
 export const calculateTotals = (sales) => {
-    const totalSales = sales.reduce((sum, s) => sum + s.total_price, 0);
-    const totalProfit = sales.reduce((sum, s) => sum + s.profit, 0);
-    const transactionCount = sales.length;
+    const valid = sales.filter(s => !s.voided);
+    const totalSales = valid.reduce((sum, s) => sum + s.total_price, 0);
+    const totalProfit = valid.reduce((sum, s) => sum + s.profit, 0);
+    const transactionCount = valid.length;
     return { totalSales, totalProfit, transactionCount };
 };
 
@@ -62,7 +68,7 @@ export const calculateDailyStats = (sales, products, lowStockThreshold) => {
 export const getTopSellingItems = (sales, products) => {
     // Determine if sales are flat or nested (transactions)
     // New structure has 'items' array
-    const allItems = sales.flatMap(sale => sale.items || [sale]);
+    const allItems = sales.filter(s => !s.voided).flatMap(sale => sale.items || [sale]);
 
     const salesByProduct = allItems.reduce((acc, item) => {
         // Handle undefined or missing product_id/productId

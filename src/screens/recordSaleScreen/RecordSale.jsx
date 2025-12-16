@@ -12,12 +12,13 @@ import { calculateSaleTotals, validateSale } from '../../logic/salesLogic';
 import { ArrowLeft, CheckCircle, Calculator, Package, Hash, Plus, Minus, Printer, Download, Scan, Camera } from 'lucide-react';
 import { AppButton, AppCard, AppInput, AppSectionHeader, AppIconButton, BarcodeScanner } from '../../components';
 import PageLayout from '../../components/PageLayout';
-import { useCurrency } from '../../logic/CurrencyContext';
+import PermissionGate from '../../components/PermissionGate';
+import { useMoneyFormatter } from '../../logic/currencyFormat';
 import jsPDF from 'jspdf';
 
 const RecordSale = ({ onNavigate }) => {
-    const { products, recordTransaction } = useInventory();
-    const { currency } = useCurrency();
+    const { products, recordTransaction, voidLastTransaction } = useInventory();
+    const money = useMoneyFormatter();
 
     const [selectedProductId, setSelectedProductId] = useState('');
     const [quantity, setQuantity] = useState('');
@@ -615,7 +616,7 @@ const RecordSale = ({ onNavigate }) => {
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
-                                                <span style={{ fontWeight: 'bold' }}>{currency.symbol}{item.total.toFixed(2)}</span>
+                                                <span style={{ fontWeight: 'bold' }}>{money(item.total)}</span>
                                                 <button
                                                     onClick={() => removeFromCart(index)}
                                                     style={{
@@ -657,44 +658,50 @@ const RecordSale = ({ onNavigate }) => {
                             </div>
 
                             {/* Discount Input */}
-                            <div style={{ marginBottom: 'var(--spacing-md)', padding: 'var(--spacing-sm)', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
-                                <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Apply Discount (Optional)</label>
-                                <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
-                                    <select
-                                        className="input-field"
-                                        value={discountType}
-                                        onChange={(e) => setDiscountType(e.target.value)}
-                                        style={{ flex: '0 0 auto', width: '120px' }}
-                                    >
-                                        <option value="fixed">Fixed ($)</option>
-                                        <option value="percentage">Percent (%)</option>
-                                    </select>
-                                    <input
-                                        type="number"
-                                        className="input-field"
-                                        value={discountValue}
-                                        onChange={(e) => setDiscountValue(e.target.value)}
-                                        placeholder={discountType === 'percentage' ? 'Enter %' : 'Enter $'}
-                                        min="0"
-                                        step={discountType === 'percentage' ? '1' : '0.01'}
-                                        max={discountType === 'percentage' ? '100' : undefined}
-                                        style={{ flex: 1 }}
-                                    />
+                            <PermissionGate action="pos.discount" fallback={(
+                                <div style={{ marginBottom: 'var(--spacing-md)', padding: 'var(--spacing-sm)', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                    Discounts are disabled for your role.
                                 </div>
-                            </div>
+                            )}>
+                                <div style={{ marginBottom: 'var(--spacing-md)', padding: 'var(--spacing-sm)', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
+                                    <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Apply Discount (Optional)</label>
+                                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                        <select
+                                            className="input-field"
+                                            value={discountType}
+                                            onChange={(e) => setDiscountType(e.target.value)}
+                                            style={{ flex: '0 0 auto', width: '120px' }}
+                                        >
+                                            <option value="fixed">Fixed ($)</option>
+                                            <option value="percentage">Percent (%)</option>
+                                        </select>
+                                        <input
+                                            type="number"
+                                            className="input-field"
+                                            value={discountValue}
+                                            onChange={(e) => setDiscountValue(e.target.value)}
+                                            placeholder={discountType === 'percentage' ? 'Enter %' : 'Enter $'}
+                                            min="0"
+                                            step={discountType === 'percentage' ? '1' : '0.01'}
+                                            max={discountType === 'percentage' ? '100' : undefined}
+                                            style={{ flex: 1 }}
+                                        />
+                                    </div>
+                                </div>
+                            </PermissionGate>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-md)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                                     <span>Subtotal:</span>
-                                    <span>{currency.symbol}{subtotal.toFixed(2)}</span>
+                                    <span>{money(subtotal)}</span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                                     <span>Tax:</span>
-                                    <span>{currency.symbol}{tax.toFixed(2)}</span>
+                                    <span>{money(tax)}</span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                                     <span>Discount:</span>
-                                    <span>-{currency.symbol}{discount.toFixed(2)}</span>
+                                    <span>-{money(discount)}</span>
                                 </div>
                             </div>
 
@@ -710,8 +717,31 @@ const RecordSale = ({ onNavigate }) => {
                                 border: '2px solid var(--accent-primary)'
                             }}>
                                 <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>Total Payable:</span>
-                                <span style={{ fontWeight: 'bold', fontSize: '1.5rem', color: 'var(--accent-primary)' }}>{currency.symbol}{total.toFixed(2)}</span>
+                                <span style={{ fontWeight: 'bold', fontSize: '1.5rem', color: 'var(--accent-primary)' }}>{money(total)}</span>
                             </div>
+
+                            {/* Undo Last Transaction (Admin only) */}
+                            <PermissionGate action="sales.void">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const reason = window.prompt('Enter reason for undo (optional):', '');
+                                        voidLastTransaction(reason || '');
+                                    }}
+                                    style={{
+                                        marginBottom: 'var(--spacing-sm)',
+                                        padding: '0.5rem 0.75rem',
+                                        background: 'var(--bg-secondary)',
+                                        color: 'var(--text-primary)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 'var(--radius-sm)',
+                                        cursor: 'pointer',
+                                        width: '100%'
+                                    }}
+                                >
+                                    Undo Last Transaction
+                                </button>
+                            </PermissionGate>
 
                             <AppButton
                                 onClick={handleCompleteTransaction}

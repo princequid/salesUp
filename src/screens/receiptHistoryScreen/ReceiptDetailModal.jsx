@@ -1,11 +1,13 @@
 import React from 'react';
-import { useCurrency } from '../../logic/CurrencyContext';
+// currency hook removed; formatting handled by useMoneyFormatter
 import { Printer, Download, X } from 'lucide-react';
 import { AppButton, AppCard } from '../../components';
+import PermissionGate from '../../components/PermissionGate';
 import jsPDF from 'jspdf';
+import { useMoneyFormatter } from '../../logic/currencyFormat';
 
 const ReceiptDetailModal = ({ receipt, onClose }) => {
-    const { currency } = useCurrency();
+    const money = useMoneyFormatter();
     
     const handlePrintReceipt = () => {
         window.print();
@@ -64,8 +66,8 @@ const ReceiptDetailModal = ({ receipt, onClose }) => {
             const itemName = item.name.length > 20 ? item.name.substring(0, 20) : item.name;
             doc.text(itemName, margin, yPos);
             doc.text(String(item.quantity), pageWidth - margin - 35, yPos);
-            doc.text(`${currency.symbol}${item.price.toFixed(2)}`, pageWidth - margin - 20, yPos);
-            doc.text(`${currency.symbol}${item.lineTotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+            doc.text(money(item.price), pageWidth - margin - 20, yPos);
+            doc.text(money(item.lineTotal), pageWidth - margin, yPos, { align: 'right' });
             yPos += 5;
         });
 
@@ -77,22 +79,22 @@ const ReceiptDetailModal = ({ receipt, onClose }) => {
         // Totals
         doc.setFontSize(9);
         doc.text('Subtotal:', margin, yPos);
-        doc.text(`${currency.symbol}${receipt.subtotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+        doc.text(money(receipt.subtotal), pageWidth - margin, yPos, { align: 'right' });
         yPos += 5;
 
         doc.text('Tax:', margin, yPos);
-        doc.text(`${currency.symbol}${receipt.tax.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+        doc.text(money(receipt.tax), pageWidth - margin, yPos, { align: 'right' });
         yPos += 5;
 
         doc.text('Discount:', margin, yPos);
-        doc.text(`-${currency.symbol}${receipt.discount.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+        doc.text(`-${money(receipt.discount)}`, pageWidth - margin, yPos, { align: 'right' });
         yPos += 7;
 
         // Total
         doc.setFont('courier', 'bold');
         doc.setFontSize(11);
         doc.text('TOTAL:', margin, yPos);
-        doc.text(`${currency.symbol}${receipt.total.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+        doc.text(money(receipt.total), pageWidth - margin, yPos, { align: 'right' });
         yPos += 8;
 
         // Footer
@@ -304,7 +306,7 @@ const ReceiptDetailModal = ({ receipt, onClose }) => {
                         fontWeight: 'bold' 
                     }}>
                         <span>TOTAL:</span>
-                        <span>${receipt.total.toFixed(2)}</span>
+                        <span style={{ color: receipt.voided ? 'var(--text-secondary)' : 'inherit' }}>${receipt.total.toFixed(2)}</span>
                     </div>
                 </div>
 
@@ -315,7 +317,7 @@ const ReceiptDetailModal = ({ receipt, onClose }) => {
                     fontSize: '0.875rem', 
                     color: 'var(--text-secondary)' 
                 }}>
-                    Thank you for your business!
+                    {receipt.voided ? 'This receipt has been voided.' : 'Thank you for your business!'}
                 </div>
 
                 {/* Action Buttons */}
@@ -324,21 +326,25 @@ const ReceiptDetailModal = ({ receipt, onClose }) => {
                     gap: 'var(--spacing-sm)', 
                     flexWrap: 'wrap' 
                 }} className="no-print">
-                    <AppButton 
-                        onClick={handleDownloadPDF} 
-                        icon={Download} 
-                        fullWidth
-                        variant="secondary"
-                    >
-                        Download PDF
-                    </AppButton>
-                    <AppButton 
-                        onClick={handlePrintReceipt} 
-                        icon={Printer} 
-                        fullWidth
-                    >
-                        Print Receipt
-                    </AppButton>
+                    {!receipt.voided && (
+                        <>
+                            <AppButton 
+                                onClick={handleDownloadPDF} 
+                                icon={Download} 
+                                fullWidth
+                                variant="secondary"
+                            >
+                                Download PDF
+                            </AppButton>
+                            <AppButton 
+                                onClick={handlePrintReceipt} 
+                                icon={Printer} 
+                                fullWidth
+                            >
+                                Print Receipt
+                            </AppButton>
+                        </>
+                    )}
                 </div>
             </AppCard>
         </div>

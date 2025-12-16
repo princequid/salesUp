@@ -4,7 +4,8 @@
  */
 import React, { useState, useMemo } from 'react';
 import { useInventory } from '../../logic/InventoryContext';
-import { useCurrency } from '../../logic/CurrencyContext';
+import PermissionGate from '../../components/PermissionGate';
+import { useMoneyFormatter } from '../../logic/currencyFormat';
 import { filterSalesByDate, exportToPDF, exportToCSV } from '../../logic/reportLogic';
 import { ArrowLeft, Download, FileText, ShoppingCart } from 'lucide-react';
 import { AppButton, AppCard, AppIconButton, AppDivider, ChartWrapper, AppEmptyState } from '../../components';
@@ -13,7 +14,7 @@ import PageLayout from '../../components/PageLayout';
 
 const Reports = ({ onNavigate }) => {
     const { sales } = useInventory();
-    const { currency } = useCurrency();
+    const money = useMoneyFormatter();
     const [filterType, setFilterType] = useState('daily');
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -109,11 +110,11 @@ const Reports = ({ onNavigate }) => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-lg)' }}>
                 <AppCard style={{ padding: 'var(--spacing-md)', textAlign: 'center' }}>
                     <div className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Total Sales</div>
-                    <div className="text-h2" style={{ fontWeight: 'bold' }}>{currency.symbol}{stats.totalSales.toFixed(2)}</div>
+                    <div className="text-h2" style={{ fontWeight: 'bold' }}>{money(stats.totalSales)}</div>
                 </AppCard>
                 <AppCard style={{ padding: 'var(--spacing-md)', textAlign: 'center' }}>
                     <div className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Total Profit</div>
-                    <div className="text-h2" style={{ fontWeight: 'bold', color: 'var(--accent-success)' }}>{currency.symbol}{stats.totalProfit.toFixed(2)}</div>
+                    <div className="text-h2" style={{ fontWeight: 'bold', color: 'var(--accent-success)' }}>{money(stats.totalProfit)}</div>
                 </AppCard>
                 <AppCard style={{ padding: 'var(--spacing-md)', textAlign: 'center' }}>
                     <div className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Transactions</div>
@@ -142,10 +143,10 @@ const Reports = ({ onNavigate }) => {
                                     <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 25, left: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} stroke="var(--text-secondary)" />
                                         <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} dy={10} />
-                                        <YAxis stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `${currency.symbol}${val}`} />
+                                        <YAxis stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => money(val)} />
                                         <Tooltip
                                             contentStyle={{ backgroundColor: 'var(--bg-card)', border: 'var(--glass-border)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)' }}
-                                            formatter={(value) => [`${currency.symbol}${value.toFixed(2)}`, 'Sales']}
+                                            formatter={(value) => [money(value), 'Sales']}
                                         />
                                         <Line type="monotone" dataKey="total" stroke="var(--accent-primary)" strokeWidth={3} dot={{ fill: 'var(--accent-primary)', r: 4 }} activeDot={{ r: 6 }} />
                                     </LineChart>
@@ -153,11 +154,11 @@ const Reports = ({ onNavigate }) => {
                                     <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 25, left: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} stroke="var(--text-secondary)" />
                                         <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} dy={10} />
-                                        <YAxis stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `${currency.symbol}${val}`} />
+                                        <YAxis stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => money(val)} />
                                         <Tooltip
                                             cursor={{ fill: 'var(--bg-secondary)', opacity: 0.5 }}
                                             contentStyle={{ backgroundColor: 'var(--bg-card)', border: 'var(--glass-border)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)' }}
-                                            formatter={(value) => [`${currency.symbol}${value.toFixed(2)}`, 'Sales']}
+                                            formatter={(value) => [money(value), 'Sales']}
                                         />
                                         <Bar dataKey="total" fill="var(--accent-primary)" radius={[4, 4, 0, 0]} barSize={40} />
                                     </BarChart>
@@ -207,24 +208,28 @@ const ReportHeader = ({ onNavigate, filterType, setFilterType, startDate, setSta
             </div>
 
             <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
-                <AppButton
-                    onClick={onExportPDF}
-                    variant="secondary"
-                    icon={FileText}
-                    size="small"
-                    style={{ transform: 'none', transition: 'none' }}
-                >
-                    PDF
-                </AppButton>
-                <AppButton
-                    onClick={onExportCSV}
-                    variant="outline"
-                    icon={Download}
-                    size="small"
-                    style={{ transform: 'none', transition: 'none' }}
-                >
-                    CSV
-                </AppButton>
+                <PermissionGate action="reports.export">
+                    <AppButton
+                        onClick={onExportPDF}
+                        variant="secondary"
+                        icon={FileText}
+                        size="small"
+                        style={{ transform: 'none', transition: 'none' }}
+                    >
+                        PDF
+                    </AppButton>
+                </PermissionGate>
+                <PermissionGate action="reports.export">
+                    <AppButton
+                        onClick={onExportCSV}
+                        variant="outline"
+                        icon={Download}
+                        size="small"
+                        style={{ transform: 'none', transition: 'none' }}
+                    >
+                        CSV
+                    </AppButton>
+                </PermissionGate>
             </div>
         </div>
 

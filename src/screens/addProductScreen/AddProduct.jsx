@@ -5,6 +5,7 @@ import { ArrowLeft, Save, Upload, Tag, Box, DollarSign, Image as ImageIcon, Hash
 import { AppButton, AppCard, AppInput, AppSectionHeader, AppIconButton } from '../../components';
 import PageLayout from '../../components/PageLayout';
 import Papa from 'papaparse';
+import PermissionGate from '../../components/PermissionGate';
 
 const AddProduct = ({ onNavigate }) => {
     const { addProduct, products } = useInventory();
@@ -170,28 +171,30 @@ const AddProduct = ({ onNavigate }) => {
                     Download CSV Template
                 </a>
                 
-                <div style={{ position: 'relative', marginBottom: importResults ? 'var(--spacing-md)' : 0 }}>
-                    <input
-                        type="file"
-                        accept=".csv"
-                        onChange={handleCSVImport}
-                        disabled={isImporting}
-                        style={{ opacity: 0, position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }}
-                    />
-                    <div className="input-field" style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '0.5rem', 
-                        color: 'var(--text-secondary)', 
-                        cursor: isImporting ? 'not-allowed' : 'pointer', 
-                        background: 'var(--bg-secondary)', 
-                        borderStyle: 'dashed',
-                        opacity: isImporting ? 0.6 : 1
-                    }}>
-                        <FileUp size={18} />
-                        <span>{isImporting ? 'Importing...' : 'Click to upload CSV file...'}</span>
+                <PermissionGate action="inventory.import">
+                    <div style={{ position: 'relative', marginBottom: importResults ? 'var(--spacing-md)' : 0 }}>
+                        <input
+                            type="file"
+                            accept=".csv"
+                            onChange={handleCSVImport}
+                            disabled={isImporting}
+                            style={{ opacity: 0, position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }}
+                        />
+                        <div className="input-field" style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '0.5rem', 
+                            color: 'var(--text-secondary)', 
+                            cursor: isImporting ? 'not-allowed' : 'pointer', 
+                            background: 'var(--bg-secondary)', 
+                            borderStyle: 'dashed',
+                            opacity: isImporting ? 0.6 : 1
+                        }}>
+                            <FileUp size={18} />
+                            <span>{isImporting ? 'Importing...' : 'Click to upload CSV file...'}</span>
+                        </div>
                     </div>
-                </div>
+                </PermissionGate>
 
                 {/* Import Results */}
                 {importResults && (
@@ -361,9 +364,11 @@ const AddProduct = ({ onNavigate }) => {
                         </div>
                     </div>
 
-                    <AppButton type="submit" icon={Save} fullWidth>
-                        Save Product
-                    </AppButton>
+                    <PermissionGate action="inventory.create">
+                        <AppButton type="submit" icon={Save} fullWidth>
+                            Save Product
+                        </AppButton>
+                    </PermissionGate>
 
                 </form>
             </AppCard>

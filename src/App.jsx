@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { InventoryProvider } from './logic/InventoryContext';
 import { CurrencyProvider } from './logic/CurrencyContext';
-import { RoleProvider, useRole } from './logic/RoleContext';
+import { RoleProvider } from './logic/RoleContext';
 import { ThemeProvider } from './logic/ThemeContext';
 import { StoreProvider } from './logic/StoreContext';
+import { useRole } from './logic/roleUtils';
 import Dashboard from './screens/dashboardScreen/Dashboard';
 import AddProduct from './screens/addProductScreen/AddProduct';
 import ProductList from './screens/productListScreen/ProductList';
@@ -15,7 +16,23 @@ import ReceiptHistory from './screens/receiptHistoryScreen/ReceiptHistory';
 import SyncIndicator from './components/SyncIndicator';
 import './styles/index.css';
 
-import BottomNav from './components/BottomNav';
+import Sidebar from './components/Sidebar';
+// Custom high-visibility hamburger icon for better mobile clarity
+const HamburgerIcon = ({ size = 28, color = 'currentColor' }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 28 28"
+    aria-hidden="true"
+    focusable="false"
+    style={{ display: 'block' }}
+  >
+    {/* Three bars with slightly heavier thickness and balanced spacing */}
+    <rect x="4" y="6" width="20" height="3.2" rx="1.6" fill={color} />
+    <rect x="4" y="12.4" width="20" height="3.2" rx="1.6" fill={color} />
+    <rect x="4" y="18.8" width="20" height="3.2" rx="1.6" fill={color} />
+  </svg>
+);
 
 function App() {
   return (
@@ -39,6 +56,7 @@ function AppContent() {
     // Cashiers start at POS, Admins at dashboard
     return isCashier() ? 'recordSale' : 'dashboard';
   });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Redirect if user tries to access unauthorized screen
   useEffect(() => {
@@ -51,6 +69,7 @@ function AppContent() {
     // Check access before navigation
     if (hasAccess(screen)) {
       setCurrentScreen(screen);
+      setSidebarOpen(false);
     } else {
       alert('Access denied. You do not have permission to access this screen.');
     }
@@ -94,15 +113,33 @@ function AppContent() {
   };
 
   return (
-    <>
-      {renderScreen()}
-      {/* Show Bottom Nav on all screens for quick access, or conditionally if desired. 
-          User requested for "quick access to core screens", implies always visible or mostly.
-          Let's keep it visible everywhere for now, similar to mobile apps. 
-      */}
-      <BottomNav currentScreen={currentScreen} onNavigate={handleNavigate} />
-      <SyncIndicator />
-    </>
+    <div className="app-shell">
+      {/* Mobile top bar with hamburger */}
+      <header className="app-topbar">
+        <button className="hamburger-btn" aria-label="Open navigation" onClick={() => setSidebarOpen(true)}>
+          <HamburgerIcon size={28} />
+        </button>
+        <div className="topbar-brand" aria-label="SalesUP">
+          <span className="brand-icon-mini" aria-hidden="true">▲</span>
+          <span className="topbar-name"><span className="topbar-sales">Sales</span><span className="topbar-up">UP</span></span>
+        </div>
+        <div className="topbar-spacer" />
+      </header>
+
+      {/* Fixed sidebar / mobile drawer */}
+      <Sidebar
+        currentScreen={currentScreen}
+        onNavigate={handleNavigate}
+        isMobileOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+
+      {/* Main content area */}
+      <main className="app-content">
+        {renderScreen()}
+        <SyncIndicator />
+      </main>
+    </div>
   );
 }
 

@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { useCurrency } from '../../logic/CurrencyContext';
+// currency hook removed; formatting handled by useMoneyFormatter
 import { useInventory } from '../../logic/InventoryContext';
 import { ArrowLeft, Receipt, Calendar, DollarSign, CreditCard, Search, FileText, TrendingUp } from 'lucide-react';
 import { AppButton, AppCard, AppSectionHeader, AppIconButton, AppEmptyState } from '../../components';
+import PermissionGate from '../../components/PermissionGate';
 import PageLayout from '../../components/PageLayout';
+import { useMoneyFormatter, parseAmountSafe } from '../../logic/currencyFormat';
 import ReceiptDetailModal from './ReceiptDetailModal';
 
 const ReceiptHistory = ({ onNavigate }) => {
-    const { transactions } = useInventory();
-    const { currency } = useCurrency();
+    const { transactions, voidTransaction } = useInventory();
+    const money = useMoneyFormatter();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedReceipt, setSelectedReceipt] = useState(null);
     const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -153,6 +155,7 @@ const ReceiptHistory = ({ onNavigate }) => {
                     {filteredTransactions.map((transaction) => {
                         const receiptId = transaction.receiptId || transaction.id;
                         const itemCount = transaction.items.reduce((sum, item) => sum + item.quantity, 0);
+                        const isVoided = !!transaction.voided;
                         
                         return (
                             <AppCard 
@@ -161,7 +164,8 @@ const ReceiptHistory = ({ onNavigate }) => {
                                     padding: 'var(--spacing-lg)',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s ease',
-                                    border: '1px solid var(--border-color)'
+                                    border: isVoided ? '1px solid var(--accent-danger)' : '1px solid var(--border-color)',
+                                    opacity: isVoided ? 0.75 : 1
                                 }}
                                 onClick={() => handleOpenReceipt(transaction)}
                                 onMouseEnter={(e) => {
@@ -197,6 +201,17 @@ const ReceiptHistory = ({ onNavigate }) => {
                                             }}>
                                                 #{receiptId.slice(-8)}
                                             </span>
+                                            {isVoided && (
+                                                <span style={{
+                                                    marginLeft: '0.5rem',
+                                                    fontSize: '0.7rem',
+                                                    background: 'var(--accent-danger)',
+                                                    color: '#fff',
+                                                    padding: '0.1rem 0.4rem',
+                                                    borderRadius: '4px',
+                                                    fontWeight: 700
+                                                }}>VOIDED</span>
+                                            )}
                                         </div>
                                         
                                         <div style={{ 
@@ -250,19 +265,43 @@ const ReceiptHistory = ({ onNavigate }) => {
                                         <span style={{ 
                                             fontSize: '1.5rem',
                                             fontWeight: 'bold',
-                                            color: 'var(--accent-primary)'
+                                            color: isVoided ? 'var(--text-secondary)' : 'var(--accent-primary)'
                                         }}>
-                                            {currency.symbol}{(typeof transaction.total === 'number' ? transaction.total : parseFloat(String(transaction.total).replace(/[^0-9.-]/g, '')) || 0).toFixed(2)}
+                                            {money(parseAmountSafe(transaction.total))}
                                         </span>
                                         {transaction.discount > 0 && (
                                             <span style={{ 
                                                 fontSize: '0.75rem',
-                                                color: 'var(--accent-success)',
+                                                color: isVoided ? 'var(--text-secondary)' : 'var(--accent-success)',
                                                 marginTop: '0.25rem'
                                             }}>
-                                                Saved {currency.symbol}{(typeof transaction.discount === 'number' ? transaction.discount : parseFloat(String(transaction.discount).replace(/[^0-9.-]/g, '')) || 0).toFixed(2)}
+                                                Saved {money(parseAmountSafe(transaction.discount))}
                                             </span>
                                         )}
+                                        <PermissionGate action="sales.void">
+                                            {!isVoided && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const reason = window.prompt('Reason for void (optional):', '');
+                                                        voidTransaction(transaction.id, reason || '');
+                                                    }}
+                                                    style={{
+                                                        marginTop: '0.5rem',
+                                                        background: 'transparent',
+                                                        color: 'var(--accent-danger)',
+                                                        border: '1px solid var(--accent-danger)',
+                                                        borderRadius: '6px',
+                                                        padding: '0.25rem 0.5rem',
+                                                        fontSize: '0.75rem',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    Void
+                                                </button>
+                                            )}
+                                        </PermissionGate>
                                     </div>
                                 </div>
 

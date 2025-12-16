@@ -1,15 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StoreContext } from './storeContextImpl';
 
-// Named export: useStore hook consuming StoreContext
-export const useStore = () => {
-    const context = React.useContext(StoreContext);
-    if (!context) {
-        throw new Error('useStore must be used within a StoreProvider');
-    }
-    return context;
-};
-
 const STORES_KEY = 'salesUp_stores';
 const ACTIVE_STORE_KEY = 'salesUp_active_store';
 

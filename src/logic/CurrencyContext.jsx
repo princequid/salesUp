@@ -1,14 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+/* eslint react-refresh/only-export-components: off */
+import React, { useState, useEffect } from 'react';
+import { CurrencyContext } from './currencyContextImpl';
 
 const CURRENCY_STORAGE_KEY = 'salesUp_currency';
-
-export const CurrencyContext = createContext();
-
-export const useCurrency = () => {
-  const ctx = useContext(CurrencyContext);
-  if (!ctx) throw new Error('useCurrency must be used within a CurrencyProvider');
-  return ctx;
-};
 
 const DEFAULT_CURRENCY = {
   code: 'USD',
@@ -55,3 +49,5 @@ export const CurrencyProvider = ({ children }) => {
     </CurrencyContext.Provider>
   );
 };
+// Re-export hook for consumers importing from this module
+export { useCurrency } from './currencyContextImpl';

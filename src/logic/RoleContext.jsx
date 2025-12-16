@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RoleContext, useRole, ROLE_STORAGE_KEY, ROLES, SCREEN_PERMISSIONS } from './roleUtils';
-
-export { useRole };
+import { RoleContext, ROLE_STORAGE_KEY, ROLES, SCREEN_PERMISSIONS, ACTION_PERMISSIONS } from './roleUtils';
 
 export const RoleProvider = ({ children }) => {
     const [userRole, setUserRole] = useState(() => {
@@ -24,6 +22,11 @@ export const RoleProvider = ({ children }) => {
         return allowedRoles.includes(userRole);
     };
 
+    const can = (action) => {
+        const allowedRoles = ACTION_PERMISSIONS[action] || [];
+        return allowedRoles.includes(userRole);
+    };
+
     const isAdmin = () => userRole === ROLES.ADMIN;
     const isCashier = () => userRole === ROLES.CASHIER;
 
@@ -31,7 +34,8 @@ export const RoleProvider = ({ children }) => {
         <RoleContext.Provider value={{ 
             userRole, 
             changeRole, 
-            hasAccess, 
+            hasAccess,
+            can,
             isAdmin, 
             isCashier,
             ROLES 
