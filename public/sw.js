@@ -1,5 +1,5 @@
 /* SalesUP Service Worker */
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -21,7 +21,7 @@ self.addEventListener('message', (event) => {
 // Optional: handle push events if integrated later
 self.addEventListener('push', (event) => {
   let payload = {};
-  try { payload = event.data ? event.data.json() : {}; } catch (e) {}
+  try { payload = event.data ? event.data.json() : {}; } catch { /* ignore parse errors */ }
   const title = payload.title || 'SalesUP';
   const options = Object.assign({
     icon: '/icons/salesup-icon.svg',

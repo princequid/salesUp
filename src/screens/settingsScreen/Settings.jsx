@@ -16,6 +16,8 @@ const Settings = ({ onNavigate }) => {
     const { currency, changeCurrency } = useCurrency();
     const { userRole, changeRole, ROLES } = useRole();
     const { stores, activeStore, addStore, updateStore, deleteStore, switchStore } = useStore();
+    const { setLogoForActiveStore, clearLogoForActiveStore } = useStore();
+    const [logoPreview, setLogoPreview] = useState(activeStore?.logoBase64 || '');
     const { currentTheme, setTheme } = useTheme();
 
     // Local state for form
@@ -138,6 +140,31 @@ const Settings = ({ onNavigate }) => {
         }
     };
 
+    const handleLogoFileChange = (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        if (!/^image\//i.test(file.type)) {
+            alert('Please select an image file.');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            setLogoPreview(reader.result);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleSaveLogo = () => {
+        setLogoForActiveStore(logoPreview || '');
+        alert('Logo saved for this store.');
+    };
+
+    const handleRemoveLogo = () => {
+        clearLogoForActiveStore();
+        setLogoPreview('');
+        alert('Logo removed for this store.');
+    };
+
     return (
         <PageLayout>
             <header style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-lg)' }}>
@@ -147,6 +174,29 @@ const Settings = ({ onNavigate }) => {
 
             <AppCard style={{ padding: 'var(--spacing-lg)' }}>
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
+                    {/* Branding / Logo */}
+                    <div>
+                        <AppSectionHeader title="Branding" />
+                        <p className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
+                            Upload a store-specific logo. It will appear in the sidebar, top bar, and receipts.
+                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)', flexWrap: 'wrap' }}>
+                            <div style={{ width: 80, height: 80, border: '1px solid var(--border-color)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
+                                {logoPreview ? (
+                                    <img src={logoPreview} alt="Logo preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 6 }} />
+                                ) : (
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>No Logo</span>
+                                )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <input type="file" accept="image/*" onChange={handleLogoFileChange} />
+                                <AppButton type="button" onClick={handleSaveLogo} variant="secondary">Save Logo</AppButton>
+                                {activeStore?.logoBase64 && (
+                                    <AppButton type="button" onClick={handleRemoveLogo} variant="danger">Remove Logo</AppButton>
+                                )}
+                            </div>
+                        </div>
+                    </div>
 
                     {/* Multi-Store Management */}
                     <PermissionGate action="stores.manage">

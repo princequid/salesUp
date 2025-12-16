@@ -1,5 +1,6 @@
 import React from 'react';
 import { useRole } from '../logic/roleUtils';
+import { useStore } from '../logic/storeContextImpl';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
 
 const Sidebar = ({ currentScreen, onNavigate, isMobileOpen, onClose }) => {
   const { hasAccess } = useRole();
+  const { activeStore } = useStore();
 
   const items = NAV_ITEMS.filter((item) => hasAccess(item.key));
 
@@ -41,7 +43,11 @@ const Sidebar = ({ currentScreen, onNavigate, isMobileOpen, onClose }) => {
       <nav className={`app-sidebar ${isMobileOpen ? 'open' : ''}`} aria-label="Primary Navigation">
         <div className="sidebar-header">
           <div className="brand" aria-label="SalesUP">
-            <span className="brand-icon" aria-hidden="true"><TrendingUp size={18} strokeWidth={2.25} /></span>
+            {activeStore?.logoBase64 ? (
+              <img src={activeStore.logoBase64} alt={activeStore.name || 'SalesUP'} className="brand-logo-img" />
+            ) : (
+              <span className="brand-icon" aria-hidden="true"><TrendingUp size={18} strokeWidth={2.25} /></span>
+            )}
             <span className="brand-name">
               <span className="brand-sales">Sales</span>
               <span className="brand-up">UP</span>

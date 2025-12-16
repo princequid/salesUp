@@ -8,7 +8,8 @@ const DEFAULT_STORE = {
     id: 'store_default',
     name: 'Main Store',
     location: '',
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    logoBase64: ''
 };
 
 export const StoreProvider = ({ children }) => {
@@ -45,7 +46,8 @@ export const StoreProvider = ({ children }) => {
             id: `store_${Date.now()}`,
             name: storeData.name || 'New Store',
             location: storeData.location || '',
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            logoBase64: ''
         };
         setStores(prev => [...prev, newStore]);
         return newStore;
@@ -86,6 +88,16 @@ export const StoreProvider = ({ children }) => {
         }
     };
 
+    const setLogoForActiveStore = (base64) => {
+        if (!activeStore) return;
+        updateStore(activeStore.id, { logoBase64: base64 || '' });
+    };
+
+    const clearLogoForActiveStore = () => {
+        if (!activeStore) return;
+        updateStore(activeStore.id, { logoBase64: '' });
+    };
+
     const value = {
         stores,
         activeStore,
@@ -93,7 +105,9 @@ export const StoreProvider = ({ children }) => {
         addStore,
         updateStore,
         deleteStore,
-        switchStore
+        switchStore,
+        setLogoForActiveStore,
+        clearLogoForActiveStore
     };
 
     return (

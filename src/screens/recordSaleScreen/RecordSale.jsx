@@ -15,9 +15,11 @@ import PageLayout from '../../components/PageLayout';
 import PermissionGate from '../../components/PermissionGate';
 import { useMoneyFormatter } from '../../logic/currencyFormat';
 import jsPDF from 'jspdf';
+import { useStore } from '../../logic/storeContextImpl';
 
 const RecordSale = ({ onNavigate }) => {
     const { products, recordTransaction, voidLastTransaction } = useInventory();
+    const { activeStore } = useStore();
     const money = useMoneyFormatter();
 
     const [selectedProductId, setSelectedProductId] = useState('');
@@ -325,9 +327,17 @@ const RecordSale = ({ onNavigate }) => {
         const margin = 5;
         const contentWidth = pageWidth - (margin * 2);
 
-        // Header
+        // Header (Logo if available)
         doc.setFontSize(16);
         doc.setFont('courier', 'bold');
+        if (activeStore?.logoBase64) {
+            try {
+                const imgType = /data:image\/(png|jpeg|jpg)/i.test(activeStore.logoBase64) ? (activeStore.logoBase64.match(/data:image\/(png|jpeg|jpg)/i)[1].toUpperCase() === 'JPG' ? 'JPEG' : activeStore.logoBase64.match(/data:image\/(png|jpeg|jpg)/i)[1].toUpperCase()) : 'PNG';
+                const imgWidth = 30; const imgHeight = 12; const x = (pageWidth - imgWidth) / 2;
+                doc.addImage(activeStore.logoBase64, imgType, x, yPos, imgWidth, imgHeight);
+                yPos += imgHeight + 4;
+            } catch { /* ignore logo render errors */ }
+        }
         doc.text('RECEIPT', pageWidth / 2, yPos, { align: 'center' });
         yPos += 8;
 

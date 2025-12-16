@@ -575,6 +575,7 @@ tr:last-child td {
 
 .brand { display: flex; align-items: center; gap: 0.5rem; }
 .brand-icon { color: var(--accent-success); display: inline-flex; }
+.brand-logo-img { width: 24px; height: 24px; border-radius: 6px; object-fit: cover; display: inline-block; }
 .brand-name { letter-spacing: 0.2px; display: inline-flex; align-items: baseline; gap: 0; }
 .brand-sales { font-weight: 600; font-size: 1.25rem; color: var(--accent-primary); }
 .brand-up { font-weight: 700; font-size: 1.25rem; color: var(--accent-success); }

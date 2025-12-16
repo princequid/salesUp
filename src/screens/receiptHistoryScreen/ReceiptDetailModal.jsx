@@ -4,10 +4,12 @@ import { Printer, Download, X } from 'lucide-react';
 import { AppButton, AppCard } from '../../components';
 import PermissionGate from '../../components/PermissionGate';
 import jsPDF from 'jspdf';
+import { useStore } from '../../logic/storeContextImpl';
 import { useMoneyFormatter } from '../../logic/currencyFormat';
 
 const ReceiptDetailModal = ({ receipt, onClose }) => {
     const money = useMoneyFormatter();
+    const { activeStore } = useStore();
     
     const handlePrintReceipt = () => {
         window.print();
@@ -29,9 +31,20 @@ const ReceiptDetailModal = ({ receipt, onClose }) => {
         const pageWidth = 80;
         const margin = 5;
 
-        // Header
+        // Header (Logo if available)
         doc.setFontSize(16);
         doc.setFont('courier', 'bold');
+        if (activeStore?.logoBase64) {
+            try {
+                const imgType = /data:image\/(png|jpeg|jpg)/i.test(activeStore.logoBase64) ? (activeStore.logoBase64.match(/data:image\/(png|jpeg|jpg)/i)[1].toUpperCase() === 'JPG' ? 'JPEG' : activeStore.logoBase64.match(/data:image\/(png|jpeg|jpg)/i)[1].toUpperCase()) : 'PNG';
+                // Centered logo
+                const imgWidth = 30; // mm
+                const imgHeight = 12; // approximate
+                const x = (pageWidth - imgWidth) / 2;
+                doc.addImage(activeStore.logoBase64, imgType, x, yPos, imgWidth, imgHeight);
+                yPos += imgHeight + 4;
+            } catch { /* ignore logo render errors */ }
+        }
         doc.text('RECEIPT', pageWidth / 2, yPos, { align: 'center' });
         yPos += 8;
 
@@ -182,6 +195,11 @@ const ReceiptDetailModal = ({ receipt, onClose }) => {
                     paddingBottom: 'var(--spacing-md)',
                     paddingTop: 'var(--spacing-md)'
                 }}>
+                    {activeStore?.logoBase64 && (
+                        <div style={{ marginBottom: '0.5rem' }}>
+                            <img src={activeStore.logoBase64} alt={activeStore.name || 'Logo'} style={{ maxHeight: 48, objectFit: 'contain' }} />
+                        </div>
+                    )}
                     <h2 style={{ margin: 0, fontSize: '1.5rem' }}>RECEIPT</h2>
                     <p style={{ 
                         margin: '0.5rem 0 0 0', 

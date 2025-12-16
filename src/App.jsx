@@ -14,10 +14,10 @@ import LowStock from './screens/lowStockScreen/LowStock';
 import Settings from './screens/settingsScreen/Settings';
 import ReceiptHistory from './screens/receiptHistoryScreen/ReceiptHistory';
 import SyncIndicator from './components/SyncIndicator';
+import Sidebar from './components/Sidebar';
 import './styles/index.css';
 
-import Sidebar from './components/Sidebar';
-// Custom high-visibility hamburger icon for better mobile clarity
+// Simple hamburger icon
 const HamburgerIcon = ({ size = 28, color = 'currentColor' }) => (
   <svg
     width={size}
@@ -27,7 +27,6 @@ const HamburgerIcon = ({ size = 28, color = 'currentColor' }) => (
     focusable="false"
     style={{ display: 'block' }}
   >
-    {/* Three bars with slightly heavier thickness and balanced spacing */}
     <rect x="4" y="6" width="20" height="3.2" rx="1.6" fill={color} />
     <rect x="4" y="12.4" width="20" height="3.2" rx="1.6" fill={color} />
     <rect x="4" y="18.8" width="20" height="3.2" rx="1.6" fill={color} />
@@ -52,13 +51,11 @@ function App() {
 
 function AppContent() {
   const { hasAccess, isCashier } = useRole();
-  const [currentScreen, setCurrentScreen] = useState(() => {
-    // Cashiers start at POS, Admins at dashboard
-    return isCashier() ? 'recordSale' : 'dashboard';
-  });
+  const [currentScreen, setCurrentScreen] = useState(() =>
+    isCashier() ? 'recordSale' : 'dashboard'
+  );
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Redirect if user tries to access unauthorized screen
   useEffect(() => {
     if (!hasAccess(currentScreen)) {
       setCurrentScreen(isCashier() ? 'recordSale' : 'dashboard');
@@ -66,7 +63,6 @@ function AppContent() {
   }, [currentScreen, hasAccess, isCashier]);
 
   const handleNavigate = (screen) => {
-    // Check access before navigation
     if (hasAccess(screen)) {
       setCurrentScreen(screen);
       setSidebarOpen(false);
@@ -75,58 +71,65 @@ function AppContent() {
     }
   };
 
-  const renderScreen = () => {
-    // Wrap content with animation key to trigger re-render animation
-    // Using a key makes React unmount/remount on screen change, firing the animation
-    return (
-      <div key={currentScreen} className="animate-fade-in">
-        {(() => {
-          switch (currentScreen) {
-            case 'dashboard':
-              return <Dashboard onNavigate={handleNavigate} />;
-            case 'addProduct':
-              return <AddProduct onNavigate={handleNavigate} />;
-            case 'productList':
-              return <ProductList onNavigate={handleNavigate} />;
-            case 'recordSale':
-              return <RecordSale onNavigate={handleNavigate} />;
-            case 'reports':
-              return <Reports onNavigate={handleNavigate} />;
-            case 'lowStock':
-              return <LowStock onNavigate={handleNavigate} />;
-            case 'settings':
-              return <Settings onNavigate={handleNavigate} />;
-            case 'receiptHistory':
-              return <ReceiptHistory onNavigate={handleNavigate} />;
-            default:
-              return (
-                <div style={{ padding: '2rem', textAlign: 'center' }}>
-                  <h2>{currentScreen} Screen</h2>
-                  <p>Under Construction</p>
-                  <button className="btn btn-primary" onClick={() => handleNavigate('dashboard')} style={{ marginTop: '1rem' }}>Back to Dashboard</button>
-                </div>
-              );
-          }
-        })()}
-      </div>
-    );
-  };
+  const renderScreen = () => (
+    <div key={currentScreen} className="animate-fade-in">
+      {(() => {
+        switch (currentScreen) {
+          case 'dashboard':
+            return <Dashboard onNavigate={handleNavigate} />;
+          case 'addProduct':
+            return <AddProduct onNavigate={handleNavigate} />;
+          case 'productList':
+            return <ProductList onNavigate={handleNavigate} />;
+          case 'recordSale':
+            return <RecordSale onNavigate={handleNavigate} />;
+          case 'reports':
+            return <Reports onNavigate={handleNavigate} />;
+          case 'lowStock':
+            return <LowStock onNavigate={handleNavigate} />;
+          case 'settings':
+            return <Settings onNavigate={handleNavigate} />;
+          case 'receiptHistory':
+            return <ReceiptHistory onNavigate={handleNavigate} />;
+          default:
+            return (
+              <div style={{ padding: '2rem', textAlign: 'center' }}>
+                <h2>{currentScreen} Screen</h2>
+                <p>Under Construction</p>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => handleNavigate('dashboard')}
+                  style={{ marginTop: '1rem' }}
+                >
+                  Back to Dashboard
+                </button>
+              </div>
+            );
+        }
+      })()}
+    </div>
+  );
 
   return (
     <div className="app-shell">
-      {/* Mobile top bar with hamburger */}
       <header className="app-topbar">
-        <button className="hamburger-btn" aria-label="Open navigation" onClick={() => setSidebarOpen(true)}>
+        <button
+          className="hamburger-btn"
+          aria-label="Open navigation"
+          onClick={() => setSidebarOpen(true)}
+        >
           <HamburgerIcon size={28} />
         </button>
         <div className="topbar-brand" aria-label="SalesUP">
           <span className="brand-icon-mini" aria-hidden="true">▲</span>
-          <span className="topbar-name"><span className="topbar-sales">Sales</span><span className="topbar-up">UP</span></span>
+          <span className="topbar-name">
+            <span className="topbar-sales">Sales</span>
+            <span className="topbar-up">UP</span>
+          </span>
         </div>
         <div className="topbar-spacer" />
       </header>
 
-      {/* Fixed sidebar / mobile drawer */}
       <Sidebar
         currentScreen={currentScreen}
         onNavigate={handleNavigate}
@@ -134,7 +137,6 @@ function AppContent() {
         onClose={() => setSidebarOpen(false)}
       />
 
-      {/* Main content area */}
       <main className="app-content">
         {renderScreen()}
         <SyncIndicator />
