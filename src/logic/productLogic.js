@@ -45,6 +45,7 @@ export const addProduct = (currentList, productData) => {
     const newProduct = {
         ...productData,
         id: Date.now().toString(),
+        barcode: productData.barcode || '',
         quantity: parseInt(productData.quantity, 10) || 0,
         cost_price: parseFloat(productData.cost_price) || 0,
         selling_price: parseFloat(productData.selling_price) || 0,

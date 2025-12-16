@@ -2,16 +2,17 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import * as productLogic from './productLogic';
 import * as salesLogic from './salesLogic';
 import * as stockLogic from './stockLogic';
+import cloudSyncService from './cloudSyncService';
+import { useStore } from './StoreContext';
 
 const InventoryContext = createContext();
 
 export const useInventory = () => useContext(InventoryContext);
 
-const LOCAL_STORAGE_KEY = 'salesUp_data_v1';
-
 const INITIAL_STATE = {
   products: [],
   sales: [],
+  transactions: [], // Receipt history with full details
   settings: {
     lowStockThreshold: 5,
     currency: 'USD',
@@ -23,10 +24,28 @@ const INITIAL_STATE = {
 };
 
 export const InventoryProvider = ({ children }) => {
+  const { activeStoreId } = useStore();
+  const LOCAL_STORAGE_KEY = `salesUp_data_v1_${activeStoreId}`;
+
   const [data, setData] = useState(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : INITIAL_STATE;
+      if (saved) {
+        const parsedData = JSON.parse(saved);
+        // Ensure transactions array exists for backward compatibility
+        if (!parsedData.transactions) {
+          console.log('[ReceiptHistory] Initializing transactions array from legacy data');
+          parsedData.transactions = [];
+        }
+        console.log('[ReceiptHistory] Loaded data:', {
+          productsCount: parsedData.products?.length || 0,
+          salesCount: parsedData.sales?.length || 0,
+          transactionsCount: parsedData.transactions?.length || 0
+        });
+        return parsedData;
+      }
+      console.log('[ReceiptHistory] No saved data, using INITIAL_STATE');
+      return INITIAL_STATE;
     } catch (e) {
       console.error("Failed to load data", e);
       return INITIAL_STATE;
@@ -35,6 +54,16 @@ export const InventoryProvider = ({ children }) => {
 
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+    console.log('[ReceiptHistory] Data saved to localStorage:', {
+      transactionsCount: data.transactions?.length || 0
+    });
+
+    // Auto-sync to cloud after local save (debounced)
+    const syncTimeout = setTimeout(() => {
+      cloudSyncService.syncToCloud(data);
+    }, 2000); // Wait 2 seconds after last change
+
+    return () => clearTimeout(syncTimeout);
   }, [data]);
 
   // Actions
@@ -95,8 +124,9 @@ export const InventoryProvider = ({ children }) => {
 
   // STABILITY LOCK: Do NOT modify this function's logic
   // Transaction structure, stock reduction, and data model are frozen
-  const recordTransaction = (cartItems, payment_method = 'Cash') => {
+  const recordTransaction = (cartItems, payment_method = 'Cash', receiptData = null) => {
     // cartItems: [{ productId, quantity, total, ... }]
+    // receiptData: { receiptId, items, subtotal, tax, discount, total, dateTime }
 
     // 1. Validate all items first
     cartItems.forEach(item => {
@@ -107,6 +137,9 @@ export const InventoryProvider = ({ children }) => {
 
     setData(prev => {
       let currentProducts = [...prev.products];
+      // Ensure transactions array exists
+      const prevTransactions = prev.transactions || [];
+      
       // Calculate transaction totals
       const transactionTotal = cartItems.reduce((sum, item) => sum + item.total, 0);
       let transactionProfit = 0;
@@ -136,9 +169,12 @@ export const InventoryProvider = ({ children }) => {
         };
       });
 
+      const transactionId = Date.now().toString();
+      const transactionDate = new Date().toISOString();
+
       const newTransaction = {
-        id: Date.now().toString(),
-        date: new Date().toISOString(),
+        id: transactionId,
+        date: transactionDate,
         items: transactionItems,
         total_price: transactionTotal,
         profit: transactionProfit,
@@ -149,10 +185,37 @@ export const InventoryProvider = ({ children }) => {
       // Add to sales list (transactions list)
       const currentSales = [newTransaction, ...prev.sales];
 
+      // Store full receipt data if provided
+      let currentTransactions = [...prevTransactions];
+      if (receiptData) {
+        const fullReceipt = {
+          id: transactionId,
+          date: transactionDate,
+          receiptId: receiptData.receiptId || transactionId,
+          paymentMethod: payment_method,
+          items: receiptData.items || transactionItems.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            lineTotal: item.total
+          })),
+          subtotal: receiptData.subtotal || transactionTotal,
+          tax: receiptData.tax || 0,
+          discount: receiptData.discount || 0,
+          total: receiptData.total || transactionTotal
+        };
+        currentTransactions = [fullReceipt, ...currentTransactions];
+        console.log('[InventoryContext] Receipt stored in transactions:', fullReceipt);
+        console.log('[InventoryContext] Total transactions now:', currentTransactions.length);
+      } else {
+        console.warn('[InventoryContext] No receiptData provided, receipt not stored in history');
+      }
+
       return {
         ...prev,
         products: currentProducts,
-        sales: currentSales
+        sales: currentSales,
+        transactions: currentTransactions
       };
     });
   };
@@ -167,9 +230,32 @@ export const InventoryProvider = ({ children }) => {
   // Selectors Helpers (using stockLogic for consistent filtering)
   const lowStockItems = stockLogic.getLowStockItems(data.products, data.settings.lowStockThreshold);
 
+  // Cloud sync functions
+  const syncToCloud = async () => {
+    return await cloudSyncService.syncToCloud(data);
+  };
+
+  const syncFromCloud = async () => {
+    const result = await cloudSyncService.syncFromCloud();
+    if (result.success && result.data) {
+      setData(result.data);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(result.data));
+    }
+    return result;
+  };
+
+  const getLastSyncTime = () => {
+    return cloudSyncService.getLastSyncTime();
+  };
+
+  const getConnectionStatus = () => {
+    return cloudSyncService.getConnectionStatus();
+  };
+
   const value = {
     products: data.products,
     sales: data.sales,
+    transactions: data.transactions,
     settings: data.settings,
     addProduct,
     updateProduct,
@@ -177,7 +263,11 @@ export const InventoryProvider = ({ children }) => {
     recordSale,
     recordTransaction,
     updateSettings,
-    lowStockItems
+    lowStockItems,
+    syncToCloud,
+    syncFromCloud,
+    getLastSyncTime,
+    getConnectionStatus
   };
 
   return (

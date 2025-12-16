@@ -6,16 +6,18 @@
  * - Stock deduction logic (recordTransaction)
  * - Quantity update handlers
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useInventory } from '../../logic/InventoryContext';
 import { calculateSaleTotals, validateSale } from '../../logic/salesLogic';
-import { ArrowLeft, CheckCircle, Calculator, Package, Hash, Plus, Minus, Printer, Download } from 'lucide-react';
-import { AppButton, AppCard, AppInput, AppSectionHeader, AppIconButton } from '../../components';
+import { ArrowLeft, CheckCircle, Calculator, Package, Hash, Plus, Minus, Printer, Download, Scan, Camera } from 'lucide-react';
+import { AppButton, AppCard, AppInput, AppSectionHeader, AppIconButton, BarcodeScanner } from '../../components';
 import PageLayout from '../../components/PageLayout';
+import { useCurrency } from '../../logic/CurrencyContext';
 import jsPDF from 'jspdf';
 
 const RecordSale = ({ onNavigate }) => {
     const { products, recordTransaction } = useInventory();
+    const { currency } = useCurrency();
 
     const [selectedProductId, setSelectedProductId] = useState('');
     const [quantity, setQuantity] = useState('');
@@ -27,6 +29,19 @@ const RecordSale = ({ onNavigate }) => {
     const [discountType, setDiscountType] = useState('fixed'); // 'fixed' or 'percentage'
     const [discountValue, setDiscountValue] = useState(''); // Discount amount or percentage
     const [paymentMethod, setPaymentMethod] = useState('Cash'); // Payment method
+    const [barcodeInput, setBarcodeInput] = useState(''); // Barcode scanner input
+    const [scanSuccess, setScanSuccess] = useState(''); // Success feedback message
+    const [highlightedItemId, setHighlightedItemId] = useState(null); // Track highlighted cart item
+    const [showCameraScanner, setShowCameraScanner] = useState(false); // Camera scanner visibility
+    
+    const barcodeInputRef = useRef(null);
+
+    // Auto-focus barcode input on mount
+    useEffect(() => {
+        if (barcodeInputRef.current) {
+            barcodeInputRef.current.focus();
+        }
+    }, []);
 
     // Find selected product object
     const selectedProduct = products.find(p => p.id === selectedProductId);
@@ -56,6 +71,104 @@ const RecordSale = ({ onNavigate }) => {
     }
 
     const total = subtotal + tax - discount;
+
+    // Shared barcode processing logic (reused by keyboard and camera scanner)
+    const processBarcodeValue = (scannedBarcode) => {
+        // Search for product by barcode field
+        const product = products.find(p => 
+            p.barcode && p.barcode === scannedBarcode
+        );
+        
+        // Handle barcode not found
+        if (!product) {
+            setErrors(prev => ({ ...prev, barcode: `Product not found: ${scannedBarcode}` }));
+            return false;
+        }
+        
+        // Handle out-of-stock
+        if (product.quantity <= 0) {
+            setErrors(prev => ({ ...prev, barcode: `Out of stock: ${product.name}` }));
+            return false;
+        }
+        
+        // Clear any previous barcode errors
+        if (errors.barcode) {
+            setErrors(prev => ({ ...prev, barcode: null }));
+        }
+        
+        // Auto-add to cart with quantity 1
+        const existingItemIndex = cart.findIndex(item => item.productId === product.id);
+        
+        if (existingItemIndex >= 0) {
+            // Update existing item
+            const newCart = [...cart];
+            const currentItem = newCart[existingItemIndex];
+            const newQuantity = currentItem.quantity + 1;
+            
+            // Check if adding one more exceeds stock
+            if (newQuantity > product.quantity) {
+                setErrors(prev => ({ ...prev, barcode: `Only ${product.quantity} in stock for ${product.name}` }));
+                return false;
+            }
+            
+            const stats = calculateSaleTotals(product, newQuantity);
+            newCart[existingItemIndex] = {
+                ...currentItem,
+                quantity: newQuantity,
+                total: stats.total
+            };
+            setCart(newCart);
+            
+            // Highlight updated item
+            setHighlightedItemId(product.id);
+            setTimeout(() => setHighlightedItemId(null), 800);
+        } else {
+            // Add new item
+            const stats = calculateSaleTotals(product, 1);
+            setCart(prev => [...prev, {
+                productId: product.id,
+                name: product.name,
+                price: product.selling_price,
+                quantity: 1,
+                total: stats.total
+            }]);
+            
+            // Highlight new item
+            setHighlightedItemId(product.id);
+            setTimeout(() => setHighlightedItemId(null), 800);
+        }
+        
+        // Show success feedback
+        setScanSuccess(`Added: ${product.name}`);
+        setTimeout(() => setScanSuccess(''), 1500);
+        
+        return true;
+    };
+
+    const handleBarcodeScan = (e) => {
+        if (e.key === 'Enter' && barcodeInput.trim()) {
+            e.preventDefault();
+            
+            const scannedBarcode = barcodeInput.trim();
+            processBarcodeValue(scannedBarcode);
+            
+            // Clear barcode input
+            setBarcodeInput('');
+            
+            // Refocus for next scan
+            if (barcodeInputRef.current) {
+                barcodeInputRef.current.focus();
+            }
+        }
+    };
+
+    const handleCameraScan = (barcodeValue) => {
+        const success = processBarcodeValue(barcodeValue);
+        if (success) {
+            // Close camera scanner on successful scan
+            setShowCameraScanner(false);
+        }
+    };
 
     const handleQuantityChange = (e) => {
         setQuantity(e.target.value);
@@ -150,25 +263,27 @@ const RecordSale = ({ onNavigate }) => {
     const handleCompleteTransaction = () => {
         if (cart.length === 0) return;
 
-        try {
-            recordTransaction(cart);
+        // Prepare receipt data (read-only, doesn't modify checkout)
+        const receiptData = {
+            receiptId: Date.now().toString(),
+            dateTime: new Date().toISOString(),
+            paymentMethod: paymentMethod,
+            items: cart.map(item => ({
+                name: item.name,
+                quantity: item.quantity,
+                price: item.price,
+                lineTotal: item.total
+            })),
+            subtotal: subtotal,
+            tax: tax,
+            discount: discount,
+            total: total
+        };
 
-            // Prepare receipt data (read-only, doesn't modify checkout)
-            const receiptData = {
-                receiptId: Date.now().toString(),
-                dateTime: new Date().toISOString(),
-                paymentMethod: paymentMethod,
-                items: cart.map(item => ({
-                    name: item.name,
-                    quantity: item.quantity,
-                    price: item.price,
-                    lineTotal: item.total
-                })),
-                subtotal: subtotal,
-                tax: tax,
-                discount: discount,
-                total: total
-            };
+        try {
+            // Pass receipt data to be stored in transaction history
+            recordTransaction(cart, paymentMethod, receiptData);
+            console.log('[RecordSale] Transaction completed and saved:', receiptData);
 
             // Store receipt for later use
             setLastReceipt(receiptData);
@@ -295,6 +410,80 @@ const RecordSale = ({ onNavigate }) => {
                 <h1 className="text-h1">Record Sale</h1>
             </header>
 
+            {/* Barcode Scanner Input - Hidden but functional */}
+            <div style={{ 
+                marginBottom: 'var(--spacing-md)',
+                padding: 'var(--spacing-sm)',
+                background: 'var(--bg-secondary)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px dashed var(--border-color)'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
+                    <Scan size={16} color="var(--text-secondary)" />
+                    <input
+                        ref={barcodeInputRef}
+                        type="text"
+                        className="input-field"
+                        value={barcodeInput}
+                        onChange={(e) => {
+                            setBarcodeInput(e.target.value);
+                            if (errors.barcode) setErrors(prev => ({ ...prev, barcode: null }));
+                        }}
+                        onKeyDown={handleBarcodeScan}
+                        placeholder="Scan barcode or type product name..."
+                        style={{ 
+                            flex: 1,
+                            fontSize: '0.875rem',
+                            padding: '0.5rem',
+                            background: 'var(--bg-card)'
+                        }}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => setShowCameraScanner(true)}
+                        style={{
+                            background: 'var(--accent-primary)',
+                            border: 'none',
+                            borderRadius: '4px',
+                            padding: '0.5rem 0.75rem',
+                            color: '#fff',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            fontSize: '0.875rem'
+                        }}
+                    >
+                        <Camera size={16} />
+                        <span>Scan</span>
+                    </button>
+                </div>
+                {errors.barcode && (
+                    <div style={{ 
+                        marginTop: 'var(--spacing-xs)', 
+                        fontSize: '0.75rem', 
+                        color: 'var(--color-error)',
+                        paddingLeft: '1.5rem'
+                    }}>
+                        {errors.barcode}
+                    </div>
+                )}
+                {scanSuccess && (
+                    <div style={{ 
+                        marginTop: 'var(--spacing-xs)', 
+                        fontSize: '0.75rem', 
+                        color: 'var(--accent-success)',
+                        paddingLeft: '1.5rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                    }}>
+                        <CheckCircle size={12} />
+                        {scanSuccess}
+                    </div>
+                )}
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-lg)' }}>
                 {/* Left Column: Add Product */}
                 <AppCard style={{ padding: 'var(--spacing-lg)', height: 'fit-content' }}>
@@ -372,10 +561,11 @@ const RecordSale = ({ onNavigate }) => {
                                             justifyContent: 'space-between',
                                             alignItems: 'center',
                                             padding: 'var(--spacing-md)',
-                                            background: 'var(--bg-secondary)',
+                                            background: highlightedItemId === item.productId ? 'var(--accent-success-bg)' : 'var(--bg-secondary)',
                                             borderRadius: 'var(--radius-sm)',
-                                            border: '1px solid var(--border-color)',
-                                            marginBottom: 'var(--spacing-xs)'
+                                            border: highlightedItemId === item.productId ? '1px solid var(--accent-success)' : '1px solid var(--border-color)',
+                                            marginBottom: 'var(--spacing-xs)',
+                                            transition: 'all 0.3s ease'
                                         }}>
                                             <div>
                                                 <div style={{ fontWeight: 500 }}>{item.name}</div>
@@ -425,7 +615,7 @@ const RecordSale = ({ onNavigate }) => {
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
-                                                <span style={{ fontWeight: 'bold' }}>${item.total.toFixed(2)}</span>
+                                                <span style={{ fontWeight: 'bold' }}>{currency.symbol}{item.total.toFixed(2)}</span>
                                                 <button
                                                     onClick={() => removeFromCart(index)}
                                                     style={{
@@ -496,15 +686,15 @@ const RecordSale = ({ onNavigate }) => {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-md)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                                     <span>Subtotal:</span>
-                                    <span>${subtotal.toFixed(2)}</span>
+                                    <span>{currency.symbol}{subtotal.toFixed(2)}</span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                                     <span>Tax:</span>
-                                    <span>${tax.toFixed(2)}</span>
+                                    <span>{currency.symbol}{tax.toFixed(2)}</span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                                     <span>Discount:</span>
-                                    <span>-${discount.toFixed(2)}</span>
+                                    <span>-{currency.symbol}{discount.toFixed(2)}</span>
                                 </div>
                             </div>
 
@@ -520,7 +710,7 @@ const RecordSale = ({ onNavigate }) => {
                                 border: '2px solid var(--accent-primary)'
                             }}>
                                 <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>Total Payable:</span>
-                                <span style={{ fontWeight: 'bold', fontSize: '1.5rem', color: 'var(--accent-primary)' }}>${total.toFixed(2)}</span>
+                                <span style={{ fontWeight: 'bold', fontSize: '1.5rem', color: 'var(--accent-primary)' }}>{currency.symbol}{total.toFixed(2)}</span>
                             </div>
 
                             <AppButton
@@ -646,6 +836,14 @@ const RecordSale = ({ onNavigate }) => {
                         </div>
                     </AppCard>
                 </div>
+            )}
+
+            {/* Camera Barcode Scanner */}
+            {showCameraScanner && (
+                <BarcodeScanner
+                    onScan={handleCameraScan}
+                    onClose={() => setShowCameraScanner(false)}
+                />
             )}
         </PageLayout>
     );

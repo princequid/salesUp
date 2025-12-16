@@ -1,11 +1,15 @@
 import React, { useMemo } from 'react';
 import { useInventory } from '../../logic/InventoryContext';
+import { useCurrency } from '../../logic/CurrencyContext';
+import { useRole } from '../../logic/RoleContext';
 import { calculateDailyStats, getTopSellingItems } from '../../logic/reportLogic';
 import { TrendingUp, DollarSign, AlertTriangle, Plus, ShoppingCart, FileText, Calculator, Settings } from 'lucide-react';
 import PageLayout from '../../components/PageLayout';
 
 const Dashboard = ({ onNavigate }) => {
     const { sales, products, settings } = useInventory();
+    const { currency } = useCurrency();
+    const { userRole, ROLES } = useRole();
 
     const stats = useMemo(() =>
         calculateDailyStats(sales, products, settings.lowStockThreshold),
@@ -23,7 +27,19 @@ const Dashboard = ({ onNavigate }) => {
             <header style={{ marginBottom: 'var(--spacing-lg)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <h1>Dashboard</h1>
-                    <p style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>{settings.businessName || 'Overview'}</p>
+                    <p style={{ color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {settings.businessName || 'Overview'}
+                        <span style={{
+                            fontSize: '0.7rem',
+                            padding: '0.2rem 0.5rem',
+                            background: userRole === ROLES.ADMIN ? 'var(--accent-primary)' : 'var(--accent-secondary)',
+                            color: '#fff',
+                            borderRadius: '12px',
+                            fontWeight: 600
+                        }}>
+                            {userRole === ROLES.ADMIN ? 'ADMIN' : 'CASHIER'}
+                        </span>
+                    </p>
                 </div>
                 <button onClick={() => onNavigate('settings')} style={{ background: 'rgba(255,255,255,0.05)', padding: '0.5rem', borderRadius: '50%', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                     <Settings size={20} />
@@ -37,7 +53,7 @@ const Dashboard = ({ onNavigate }) => {
                         <DollarSign size={24} color="var(--accent-primary)" />
                         <span className="truncate" style={{ fontSize: 'var(--font-sm)', fontWeight: 600 }}>Sales Today</span>
                     </div>
-                    <div className="truncate" style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>${stats.totalSales.toFixed(2)}</div>
+                    <div className="truncate" style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>{currency.symbol}{stats.totalSales.toFixed(2)}</div>
                 </div>
 
                 <div className="glass-panel" style={{ padding: '1.25rem', minHeight: '150px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--accent-success)' }}>
@@ -45,7 +61,7 @@ const Dashboard = ({ onNavigate }) => {
                         <TrendingUp size={24} color="var(--accent-success)" />
                         <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600 }}>Profit Today</span>
                     </div>
-                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>${stats.totalProfit.toFixed(2)}</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>{currency.symbol}{stats.totalProfit.toFixed(2)}</div>
                 </div>
 
                 <div className="glass-panel"

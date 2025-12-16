@@ -69,6 +69,13 @@
   /* 12px */
 
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Additional tokens used across app */
+  --border-color: #CBD5E1; /* Slate 300 */
+  --text-on-accent: #FFFFFF;
+  --bg-success-soft: rgba(16, 185, 129, 0.1);
+  --bg-danger-soft: rgba(239, 68, 68, 0.1);
+  --text-on-success: #065F46; /* Emerald 800 */
 }
 
 * {
@@ -214,8 +221,8 @@ h3 {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  border-color: #94A3B8;
-  background-color: #F8FAFC;
+  border-color: var(--border-color);
+  background-color: var(--bg-secondary);
 }
 
 /* Outline Variant */
@@ -279,7 +286,7 @@ h3 {
 .input-field {
   width: 100%;
   padding: 0.75rem 1rem;
-  background-color: #FFFFFF;
+  background-color: var(--bg-card);
   border: 1px solid #CBD5E1;
   /* Slate 300 */
   border-radius: var(--radius-md);
@@ -393,6 +400,31 @@ tr:last-child td {
   animation: listSlideIn 0.3s ease-out backwards;
 }
 
+/* Spin animation for loading indicators */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 /* Stagger delays handled via JS or nth-child helper if static */
 
 /* CHART PROTECTION: Ensure Recharts container doesn't accidentally inherit unwanted styles */
@@ -418,4 +450,33 @@ tr:last-child td {
 
 .recharts-legend-item {
   cursor: pointer;
+}
+
+/* Dark Theme Overrides applied at root (<html> has class="dark") */
+.dark {
+  --bg-primary: #0B1220; /* Very dark slate */
+  --bg-secondary: #111827; /* Gray 900 */
+  --bg-card: #0F172A; /* Slate 900 */
+
+  --text-primary: #E5E7EB; /* Gray 200 */
+  --text-secondary: #94A3B8; /* Slate 400 */
+  --text-accent: #38BDF8; /* Sky 400 */
+
+  --accent-primary: #3B82F6; /* Blue 500 */
+  --accent-hover: #2563EB; /* Blue 600 */
+  --accent-success: #10B981; /* Emerald 500 */
+  --accent-danger: #EF4444; /* Red 500 */
+  --accent-warning: #F59E0B; /* Amber 500 */
+
+  --glass-border: 1px solid rgba(148, 163, 184, 0.25);
+  --glass-shadow:
+    0 1px 2px 0 rgba(0, 0, 0, 0.35),
+    0 4px 6px -1px rgba(0, 0, 0, 0.25),
+    0 10px 15px -3px rgba(0, 0, 0, 0.3);
+
+  --border-color: rgba(148, 163, 184, 0.35);
+  --text-on-accent: #FFFFFF;
+  --bg-success-soft: rgba(16, 185, 129, 0.15);
+  --bg-danger-soft: rgba(239, 68, 68, 0.15);
+  --text-on-success: #D1FAE5; /* Emerald 100 */
 }

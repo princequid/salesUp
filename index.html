@@ -5,6 +5,22 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>salesup</title>
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('salesUp_theme');
+          var code = (saved || 'system').toLowerCase();
+          var effective = code === 'system'
+            ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : (code === 'dark' ? 'dark' : 'light');
+          var root = document.documentElement;
+          root.classList.remove('light','dark');
+          root.classList.add(effective);
+        } catch (e) {
+          // fallback: do nothing
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

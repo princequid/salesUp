@@ -1,42 +1,134 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useInventory } from '../../logic/InventoryContext';
-import { ArrowLeft, Save, Building, Bell, Moon, Smartphone } from 'lucide-react';
+import { useCurrency } from '../../logic/CurrencyContext';
+import { useRole } from '../../logic/RoleContext';
+import { useStore } from '../../logic/StoreContext';
+import { useTheme } from '../../logic/ThemeContext';
+import cloudSyncService, { SYNC_STATUS } from '../../logic/cloudSyncService';
+import { ArrowLeft, Save, Building, Bell, Moon, Smartphone, UserCircle, Cloud, CloudOff, RefreshCw, CheckCircle, XCircle, Wifi, WifiOff, Store, Plus, MapPin, Trash2 } from 'lucide-react';
 import { AppButton, AppCard, AppInput, AppSectionHeader, AppIconButton } from '../../components';
 import PageLayout from '../../components/PageLayout';
 
 const Settings = ({ onNavigate }) => {
-    const { settings, updateSettings } = useInventory();
+    const { settings, updateSettings, syncToCloud, syncFromCloud, getLastSyncTime, getConnectionStatus } = useInventory();
+    const { currency, changeCurrency } = useCurrency();
+    const { userRole, changeRole, ROLES } = useRole();
+    const { stores, activeStore, addStore, updateStore, deleteStore, switchStore } = useStore();
+    const { currentTheme, setTheme } = useTheme();
 
     // Local state for form
     const [formData, setFormData] = useState({
         businessName: settings.businessName || '',
         lowStockThreshold: settings.lowStockThreshold || 5,
-        currency: settings.currency || 'USD',
-        theme: settings.theme || 'system'
+        currency: settings.currency || currency.code || 'USD'
     });
+
+    const [syncStatus, setSyncStatus] = useState(SYNC_STATUS.IDLE);
+    const [lastSync, setLastSync] = useState(getLastSyncTime());
+    const [isOnline, setIsOnline] = useState(getConnectionStatus() === 'online');
+    const [showAddStore, setShowAddStore] = useState(false);
+    const [newStoreData, setNewStoreData] = useState({ name: '', location: '' });
+
+    useEffect(() => {
+        // Subscribe to sync status updates
+        const unsubscribe = cloudSyncService.subscribe((update) => {
+            if (update.status) setSyncStatus(update.status);
+            if (update.lastSync) setLastSync(update.lastSync);
+        });
+
+        // Update online status
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            unsubscribe();
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
+        if (name === 'theme') {
+            setTheme(value);
+            return; // do not store theme locally
+        }
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
 
-        // Simple mapping for symbols
-        let symbol = '$';
-        if (formData.currency === 'GHS') symbol = '₵';
-        if (formData.currency === 'NGN') symbol = '₦';
-        if (formData.currency === 'EUR') symbol = '€';
-        if (formData.currency === 'GBP') symbol = '£';
+        // Update global currency via context
+        changeCurrency(formData.currency);
 
+        // Persist other settings (without currencySymbol, using global CurrencyContext)
         updateSettings({
             ...formData,
-            currencySymbol: symbol,
             lowStockThreshold: parseInt(formData.lowStockThreshold, 10)
         });
 
         alert("Settings Saved Successfully!");
+    };
+
+    const handleSyncNow = async () => {
+        setSyncStatus(SYNC_STATUS.SYNCING);
+        const result = await syncToCloud();
+        if (result.success) {
+            setLastSync(getLastSyncTime());
+        }
+    };
+
+    const handleRestoreFromCloud = async () => {
+        if (window.confirm('This will replace your local data with cloud backup. Continue?')) {
+            setSyncStatus(SYNC_STATUS.SYNCING);
+            const result = await syncFromCloud();
+            if (result.success) {
+                alert('Data restored from cloud successfully!');
+                setLastSync(result.timestamp);
+            } else {
+                alert('Failed to restore from cloud. ' + (result.error?.message || 'No backup found.'));
+            }
+            setSyncStatus(SYNC_STATUS.IDLE);
+        }
+    };
+
+    const formatLastSync = () => {
+        if (!lastSync) return 'Never';
+        const date = new Date(lastSync);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins} min ago`;
+        if (diffMins < 1440) return `${Math.floor(diffMins / 60)} hours ago`;
+        return date.toLocaleDateString();
+    };
+
+    const handleAddStore = (e) => {
+        e.preventDefault();
+        if (!newStoreData.name.trim()) {
+            alert('Store name is required');
+            return;
+        }
+        addStore(newStoreData);
+        setNewStoreData({ name: '', location: '' });
+        setShowAddStore(false);
+        alert('Store added successfully!');
+    };
+
+    const handleDeleteStore = (storeId) => {
+        if (window.confirm('Are you sure? This will delete all data for this store.')) {
+            try {
+                deleteStore(storeId);
+                alert('Store deleted successfully');
+            } catch (err) {
+                alert(err.message);
+            }
+        }
     };
 
     return (
@@ -48,6 +140,295 @@ const Settings = ({ onNavigate }) => {
 
             <AppCard style={{ padding: 'var(--spacing-lg)' }}>
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
+
+                    {/* Multi-Store Management */}
+                    <div>
+                        <AppSectionHeader title="Store Management" />
+                        <p className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
+                            Manage multiple stores with separate inventory and sales data.
+                        </p>
+
+                        {/* Current Store Indicator */}
+                        <div style={{
+                            padding: 'var(--spacing-md)',
+                            background: 'var(--accent-primary)',
+                            color: 'var(--text-on-accent)',
+                            borderRadius: 'var(--radius-sm)',
+                            marginBottom: 'var(--spacing-md)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 'var(--spacing-sm)'
+                        }}>
+                            <Store size={20} />
+                            <div>
+                                <div style={{ fontWeight: 600 }}>{activeStore.name}</div>
+                                {activeStore.location && (
+                                    <div style={{ fontSize: '0.75rem', opacity: 0.9, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                        <MapPin size={12} />
+                                        {activeStore.location}
+                                    </div>
+                                )}
+                            </div>
+                            <div style={{ marginLeft: 'auto', fontSize: '0.7rem', opacity: 0.8 }}>
+                                Active
+                            </div>
+                        </div>
+
+                        {/* Stores List */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-md)' }}>
+                            {stores.map(store => (
+                                <div key={store.id} style={{
+                                    padding: 'var(--spacing-md)',
+                                    background: store.id === activeStore.id ? 'var(--bg-secondary)' : 'var(--bg-card)',
+                                    border: store.id === activeStore.id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 'var(--spacing-sm)'
+                                }}>
+                                    <Store size={18} color={store.id === activeStore.id ? 'var(--accent-primary)' : 'var(--text-secondary)'} />
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 500 }}>{store.name}</div>
+                                        {store.location && (
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
+                                                <MapPin size={12} />
+                                                {store.location}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {store.id !== activeStore.id && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => switchStore(store.id)}
+                                                style={{
+                                                    padding: '0.25rem 0.75rem',
+                                                    background: 'var(--accent-primary)',
+                                                    color: 'var(--text-on-accent)',
+                                                    border: 'none',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    fontSize: '0.75rem',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                Switch
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteStore(store.id)}
+                                                disabled={stores.length <= 1}
+                                                style={{
+                                                    padding: '0.25rem',
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    color: stores.length <= 1 ? 'var(--text-secondary)' : 'var(--accent-danger)',
+                                                    cursor: stores.length <= 1 ? 'not-allowed' : 'pointer',
+                                                    opacity: stores.length <= 1 ? 0.3 : 1
+                                                }}
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Add Store Form */}
+                        {!showAddStore ? (
+                            <button
+                                type="button"
+                                onClick={() => setShowAddStore(true)}
+                                style={{
+                                    padding: 'var(--spacing-md)',
+                                    background: 'var(--bg-secondary)',
+                                    border: '1px dashed var(--border-color)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    color: 'var(--text-primary)',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.5rem',
+                                    fontSize: '0.875rem'
+                                }}
+                            >
+                                <Plus size={16} />
+                                Add New Store
+                            </button>
+                        ) : (
+                            <div style={{
+                                padding: 'var(--spacing-md)',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: 'var(--radius-sm)'
+                            }}>
+                                <h4 style={{ marginBottom: 'var(--spacing-md)', fontSize: '0.875rem', fontWeight: 600 }}>New Store</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+                                    <AppInput
+                                        label="Store Name"
+                                        value={newStoreData.name}
+                                        onChange={(e) => setNewStoreData(prev => ({ ...prev, name: e.target.value }))}
+                                        placeholder="e.g. Downtown Branch"
+                                        icon={Store}
+                                    />
+                                    <AppInput
+                                        label="Location (Optional)"
+                                        value={newStoreData.location}
+                                        onChange={(e) => setNewStoreData(prev => ({ ...prev, location: e.target.value }))}
+                                        placeholder="e.g. 123 Main St"
+                                        icon={MapPin}
+                                    />
+                                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                        <button
+                                            type="button"
+                                            onClick={handleAddStore}
+                                            style={{
+                                                flex: 1,
+                                                padding: '0.5rem',
+                                                background: 'var(--accent-primary)',
+                                                color: '#fff',
+                                                border: 'none',
+                                                borderRadius: 'var(--radius-sm)',
+                                                fontSize: '0.875rem',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            Create Store
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowAddStore(false);
+                                                setNewStoreData({ name: '', location: '' });
+                                            }}
+                                            style={{
+                                                flex: 1,
+                                                padding: '0.5rem',
+                                                background: 'var(--bg-card)',
+                                                color: 'var(--text-primary)',
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: 'var(--radius-sm)',
+                                                fontSize: '0.875rem',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Cloud Sync Section */}
+                    <div>
+                        <AppSectionHeader title="Cloud Backup & Sync" />
+                        <p className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
+                            Automatically backup your data to the cloud. Works offline-first.
+                        </p>
+
+                        {/* Connection Status */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 'var(--spacing-sm)',
+                            padding: 'var(--spacing-md)',
+                            background: isOnline ? 'var(--bg-success-soft)' : 'var(--bg-danger-soft)',
+                            borderRadius: 'var(--radius-sm)',
+                            marginBottom: 'var(--spacing-md)'
+                        }}>
+                            {isOnline ? <Wifi size={18} color="var(--accent-success)" /> : <WifiOff size={18} color="var(--accent-danger)" />}
+                            <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+                                {isOnline ? 'Online' : 'Offline'}
+                            </span>
+                            {syncStatus === SYNC_STATUS.SYNCING && (
+                                <RefreshCw size={16} className="spin" style={{ marginLeft: 'auto' }} />
+                            )}
+                        </div>
+
+                        {/* Sync Status */}
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: 'var(--spacing-sm)',
+                            background: 'var(--bg-secondary)',
+                            borderRadius: 'var(--radius-sm)',
+                            marginBottom: 'var(--spacing-md)',
+                            fontSize: '0.875rem'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                {syncStatus === SYNC_STATUS.SUCCESS && <CheckCircle size={16} color="var(--accent-success)" />}
+                                {syncStatus === SYNC_STATUS.ERROR && <XCircle size={16} color="var(--accent-danger)" />}
+                                {syncStatus === SYNC_STATUS.SYNCING && <RefreshCw size={16} className="spin" />}
+                                {syncStatus === SYNC_STATUS.OFFLINE && <CloudOff size={16} color="var(--text-secondary)" />}
+                                <span>Last sync: <strong>{formatLastSync()}</strong></span>
+                            </div>
+                        </div>
+
+                        {/* Sync Actions */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-sm)' }}>
+                            <button
+                                type="button"
+                                onClick={handleSyncNow}
+                                disabled={!isOnline || syncStatus === SYNC_STATUS.SYNCING}
+                                style={{
+                                    padding: 'var(--spacing-md)',
+                                    background: isOnline ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                                    color: isOnline ? 'var(--text-on-success)' : 'var(--text-secondary)',
+                                    border: 'none',
+                                    borderRadius: 'var(--radius-sm)',
+                                    cursor: isOnline && syncStatus !== SYNC_STATUS.SYNCING ? 'pointer' : 'not-allowed',
+                                    fontSize: '0.875rem',
+                                    fontWeight: 500,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.5rem',
+                                    opacity: isOnline ? 1 : 0.5
+                                }}
+                            >
+                                {syncStatus === SYNC_STATUS.SYNCING ? (
+                                    <><RefreshCw size={16} className="spin" /> Syncing...</>
+                                ) : (
+                                    <><Cloud size={16} /> Sync Now</>
+                                )}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleRestoreFromCloud}
+                                disabled={!isOnline || syncStatus === SYNC_STATUS.SYNCING}
+                                style={{
+                                    padding: 'var(--spacing-md)',
+                                    background: 'var(--bg-secondary)',
+                                    color: 'var(--text-primary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    cursor: isOnline && syncStatus !== SYNC_STATUS.SYNCING ? 'pointer' : 'not-allowed',
+                                    fontSize: '0.875rem',
+                                    fontWeight: 500,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.5rem',
+                                    opacity: isOnline ? 1 : 0.5
+                                }}
+                            >
+                                <RefreshCw size={16} /> Restore
+                            </button>
+                        </div>
+
+                        <p style={{ 
+                            fontSize: '0.7rem', 
+                            color: 'var(--text-secondary)', 
+                            marginTop: 'var(--spacing-sm)',
+                            fontStyle: 'italic'
+                        }}>
+                            💡 Data syncs automatically every 2 seconds after changes
+                        </p>
+                    </div>
 
                     {/* Business Profile */}
                     <div>
@@ -115,6 +496,77 @@ const Settings = ({ onNavigate }) => {
                                     </select>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* User Role Section */}
+                    <div>
+                        <AppSectionHeader title="User Role" />
+                        <p className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
+                            Select your role to customize access permissions.
+                        </p>
+                        
+                        <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+                            <button
+                                type="button"
+                                onClick={() => changeRole(ROLES.ADMIN)}
+                                style={{
+                                    flex: 1,
+                                    padding: 'var(--spacing-md)',
+                                    background: userRole === ROLES.ADMIN ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                                    color: userRole === ROLES.ADMIN ? '#fff' : 'var(--text-primary)',
+                                    border: userRole === ROLES.ADMIN ? 'none' : '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <UserCircle size={32} />
+                                <div>
+                                    <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Admin</div>
+                                    <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Full Access</div>
+                                </div>
+                            </button>
+                            
+                            <button
+                                type="button"
+                                onClick={() => changeRole(ROLES.CASHIER)}
+                                style={{
+                                    flex: 1,
+                                    padding: 'var(--spacing-md)',
+                                    background: userRole === ROLES.CASHIER ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                                    color: userRole === ROLES.CASHIER ? '#fff' : 'var(--text-primary)',
+                                    border: userRole === ROLES.CASHIER ? 'none' : '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <UserCircle size={32} />
+                                <div>
+                                    <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Cashier</div>
+                                    <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>POS Only</div>
+                                </div>
+                            </button>
+                        </div>
+
+                        <div style={{
+                            marginTop: 'var(--spacing-md)',
+                            padding: 'var(--spacing-sm)',
+                            background: 'var(--bg-secondary)',
+                            borderRadius: 'var(--radius-sm)',
+                            fontSize: '0.75rem',
+                            color: 'var(--text-secondary)'
+                        }}>
+                            <strong>Current Role:</strong> {userRole === ROLES.ADMIN ? 'Admin (Full Access)' : 'Cashier (POS & Receipts Only)'}
                         </div>
                     </div>
 

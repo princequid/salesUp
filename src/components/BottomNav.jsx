@@ -1,16 +1,21 @@
 import React from 'react';
-import { LayoutDashboard, ShoppingCart, Calculator, FileText, Settings, Plus } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Calculator, Receipt, Settings } from 'lucide-react';
+import { useRole } from '../logic/RoleContext';
 
 const BottomNav = ({ currentScreen, onNavigate }) => {
+    const { hasAccess } = useRole();
 
     // Define tabs
     const tabs = [
         { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
         { id: 'productList', label: 'Products', icon: ShoppingCart },
         { id: 'recordSale', label: 'POS', icon: Calculator },
-        { id: 'reports', label: 'Reports', icon: FileText },
+        { id: 'receiptHistory', label: 'Receipts', icon: Receipt },
         { id: 'settings', label: 'Settings', icon: Settings },
     ];
+
+    // Filter tabs based on user access
+    const visibleTabs = tabs.filter(tab => hasAccess(tab.id));
 
     return (
         <div style={{
@@ -26,7 +31,7 @@ const BottomNav = ({ currentScreen, onNavigate }) => {
             boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.05)',
             zIndex: 1000
         }}>
-            {tabs.map(tab => {
+            {visibleTabs.map(tab => {
                 const isActive = currentScreen === tab.id;
                 const Icon = tab.icon;
 

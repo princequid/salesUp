@@ -10,3 +10,4 @@ export { default as AppModal } from './AppModal';
 export { default as AppEmptyState } from './AppEmptyState';
 export { default as ChartWrapper } from './ChartWrapper';
 export { default as BottomNav } from './BottomNav';
+export { default as BarcodeScanner } from './BarcodeScanner';

@@ -55,6 +55,7 @@ export const applyTheme = (mode) => {
     root.style.setProperty('--accent-danger', theme.colors.danger);
     root.style.setProperty('--accent-warning', theme.colors.warning);
     root.style.setProperty('--accent-success', theme.colors.success);
+    root.style.setProperty('--accent-success-bg', themeToApply === 'dark' ? 'rgba(52, 211, 153, 0.1)' : 'rgba(16, 185, 129, 0.1)');
 
     // Apply data attribute for specific CSS overrides if needed
     root.setAttribute('data-theme', themeToApply);
