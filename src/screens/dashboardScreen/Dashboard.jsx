@@ -202,7 +202,7 @@ const Dashboard = ({ onNavigate }) => {
                 <div className="glass-panel" style={{ padding: '1.5rem' }}>
                     <h2 className="section-title">Recent Activity</h2>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        {(sales || []).filter(s => !s.voided).slice(-5).reverse().map((s, idx) => (
+                        {(sales || []).filter(s => !s.voided).slice(0, 5).map((s, idx) => (
                             <div key={s.id || s.receiptId || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 0', borderBottom: idx < 4 ? '1px solid var(--border-color)' : 'none' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                                     <span style={{ fontWeight: 600 }}>{new Date(s.date).toLocaleString()}</span>

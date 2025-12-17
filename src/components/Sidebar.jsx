@@ -1,5 +1,6 @@
 import React from 'react';
 import { useRole } from '../logic/roleUtils';
+import { useInventory } from '../logic/InventoryContext';
 import { useStore } from '../logic/storeContextImpl';
 import {
   LayoutDashboard,
@@ -25,10 +26,48 @@ const NAV_ITEMS = [
 ];
 
 const Sidebar = ({ currentScreen, onNavigate, isMobileOpen, onClose }) => {
-  const { hasAccess } = useRole();
+  const { hasAccess, userRole, changeRole, ROLES } = useRole();
+  const { settings } = useInventory();
   const { activeStore } = useStore();
 
   const items = NAV_ITEMS.filter((item) => hasAccess(item.key));
+
+  const hashPassword = async (password) => {
+    if (!window.crypto?.subtle) {
+      throw new Error('Password verification is not supported in this browser.');
+    }
+    const encoder = new TextEncoder();
+    const data = encoder.encode(String(password));
+    const digest = await window.crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  };
+
+  const handleSwitchToAdmin = async () => {
+    const adminHash = (settings && settings.adminSwitchPasswordHash) ? settings.adminSwitchPasswordHash : '';
+    if (!adminHash) {
+      alert('Admin mode is locked. Ask an Admin to set a password in Settings > Admin Access.');
+      return;
+    }
+
+    const password = window.prompt('Enter Admin password');
+    if (password == null) return;
+
+    try {
+      const enteredHash = await hashPassword(password);
+      if (enteredHash !== adminHash) {
+        alert('Incorrect password.');
+        return;
+      }
+
+      changeRole(ROLES.ADMIN);
+      onNavigate('dashboard');
+      if (isMobileOpen) onClose();
+    } catch (err) {
+      alert(err?.message || 'Failed to verify password.');
+    }
+  };
 
   return (
     <>
@@ -79,6 +118,22 @@ const Sidebar = ({ currentScreen, onNavigate, isMobileOpen, onClose }) => {
               </button>
             );
           })}
+
+          {userRole === ROLES.CASHIER && (
+            <button
+              role="listitem"
+              className="sidebar-item"
+              onClick={handleSwitchToAdmin}
+            >
+              <span className="sidebar-icon" aria-hidden="true">
+                <LayoutDashboard size={18} strokeWidth={2} />
+              </span>
+              <span className="sidebar-text">
+                <span className="sidebar-title">Admin Mode</span>
+                <span className="sidebar-desc">Switch to admin features</span>
+              </span>
+            </button>
+          )}
         </div>
       </nav>
     </>

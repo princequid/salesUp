@@ -20,6 +20,52 @@ const Settings = ({ onNavigate }) => {
     const [logoPreview, setLogoPreview] = useState(activeStore?.logoBase64 || '');
     const { currentTheme, setTheme } = useTheme();
 
+    const [adminSwitchPassword, setAdminSwitchPassword] = useState('');
+    const [adminSwitchPasswordConfirm, setAdminSwitchPasswordConfirm] = useState('');
+
+    const hashPassword = async (password) => {
+        if (!window.crypto?.subtle) {
+            throw new Error('Password hashing is not supported in this browser.');
+        }
+        const encoder = new TextEncoder();
+        const data = encoder.encode(String(password));
+        const digest = await window.crypto.subtle.digest('SHA-256', data);
+        return Array.from(new Uint8Array(digest))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+    };
+
+    const handleSetAdminSwitchPassword = async () => {
+        const p1 = String(adminSwitchPassword || '');
+        const p2 = String(adminSwitchPasswordConfirm || '');
+
+        if (!p1 || p1.length < 4) {
+            alert('Password must be at least 4 characters.');
+            return;
+        }
+        if (p1 !== p2) {
+            alert('Passwords do not match.');
+            return;
+        }
+
+        try {
+            const hash = await hashPassword(p1);
+            updateSettings({ adminSwitchPasswordHash: hash });
+            setAdminSwitchPassword('');
+            setAdminSwitchPasswordConfirm('');
+            alert('Admin switch password updated.');
+        } catch (err) {
+            alert(err?.message || 'Failed to set admin password.');
+        }
+    };
+
+    const handleClearAdminSwitchPassword = () => {
+        const ok = window.confirm('Clear the admin switch password? Cashiers will be able to switch to Admin without a password.');
+        if (!ok) return;
+        updateSettings({ adminSwitchPasswordHash: '' });
+        alert('Admin switch password cleared.');
+    };
+
     // Local state for form
     const [formData, setFormData] = useState({
         businessName: settings.businessName || '',
@@ -197,6 +243,60 @@ const Settings = ({ onNavigate }) => {
                             </div>
                         </div>
                     </div>
+
+                    <PermissionGate action="users.manage">
+                        <div>
+                            <AppSectionHeader title="Admin Access" />
+                            <p className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
+                                Set a password required for Cashiers to switch into Admin mode.
+                            </p>
+
+                            <div style={{
+                                marginBottom: 'var(--spacing-md)',
+                                padding: 'var(--spacing-sm)',
+                                background: 'var(--bg-secondary)',
+                                borderRadius: 'var(--radius-sm)',
+                                fontSize: '0.75rem',
+                                color: 'var(--text-secondary)'
+                            }}>
+                                <strong>Status:</strong> {settings.adminSwitchPasswordHash ? 'Password enabled' : 'No password set'}
+                            </div>
+
+                            <div style={{ display: 'grid', gap: 'var(--spacing-md)' }}>
+                                <AppInput
+                                    label="New Admin Switch Password"
+                                    type="password"
+                                    value={adminSwitchPassword}
+                                    onChange={(e) => setAdminSwitchPassword(e.target.value)}
+                                    placeholder="Enter new password"
+                                />
+                                <AppInput
+                                    label="Confirm Password"
+                                    type="password"
+                                    value={adminSwitchPasswordConfirm}
+                                    onChange={(e) => setAdminSwitchPasswordConfirm(e.target.value)}
+                                    placeholder="Re-enter password"
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginTop: 'var(--spacing-md)' }}>
+                                <AppButton
+                                    type="button"
+                                    onClick={handleSetAdminSwitchPassword}
+                                    style={{ flex: 1 }}
+                                >
+                                    Set Password
+                                </AppButton>
+                                <AppButton
+                                    type="button"
+                                    onClick={handleClearAdminSwitchPassword}
+                                    style={{ flex: 1 }}
+                                >
+                                    Clear Password
+                                </AppButton>
+                            </div>
+                        </div>
+                    </PermissionGate>
 
                     {/* Multi-Store Management */}
                     <PermissionGate action="stores.manage">

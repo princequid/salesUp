@@ -19,7 +19,8 @@ const INITIAL_STATE = {
     currencySymbol: '$',
     theme: 'dark', // light or dark
     businessName: 'My Shop',
-    businessLogo: null
+    businessLogo: null,
+    adminSwitchPasswordHash: ''
   }
 };
 
@@ -32,6 +33,10 @@ export const InventoryProvider = ({ children }) => {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsedData = JSON.parse(saved);
+
+        // Ensure settings exist and include all defaults for forward/backward compatibility
+        parsedData.settings = { ...INITIAL_STATE.settings, ...(parsedData.settings || {}) };
+
         // Ensure transactions array exists for backward compatibility
         if (!parsedData.transactions) {
           console.log('[ReceiptHistory] Initializing transactions array from legacy data');
