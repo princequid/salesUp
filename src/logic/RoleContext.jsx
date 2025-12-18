@@ -3,8 +3,19 @@ import { RoleContext, ROLE_STORAGE_KEY, ROLES, SCREEN_PERMISSIONS, ACTION_PERMIS
 
 export const RoleProvider = ({ children }) => {
     const [userRole, setUserRole] = useState(() => {
-        const saved = localStorage.getItem(ROLE_STORAGE_KEY);
-        return saved || ROLES.ADMIN; // Default to admin for first time users
+        try {
+            const sessionRaw = localStorage.getItem('salesUp_session_v1');
+            if (sessionRaw) {
+                const session = JSON.parse(sessionRaw);
+                const role = session?.role;
+                const ok = session?.isAuthenticated === true && (role === ROLES.ADMIN || role === ROLES.CASHIER);
+                if (ok) return role;
+            }
+        } catch {
+            // ignore
+        }
+
+        return ROLES.GUEST;
     });
 
     useEffect(() => {

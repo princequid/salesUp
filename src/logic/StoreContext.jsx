@@ -6,7 +6,7 @@ const ACTIVE_STORE_KEY = 'salesUp_active_store';
 
 const DEFAULT_STORE = {
     id: 'store_default',
-    name: 'Main Store',
+    name: 'My Shop',
     location: '',
     createdAt: new Date().toISOString(),
     logoBase64: ''

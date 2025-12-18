@@ -13,14 +13,19 @@ import { ArrowLeft, CheckCircle, Calculator, Package, Hash, Plus, Minus, Printer
 import { AppButton, AppCard, AppInput, AppSectionHeader, AppIconButton, BarcodeScanner } from '../../components';
 import PageLayout from '../../components/PageLayout';
 import PermissionGate from '../../components/PermissionGate';
+import { useAuth } from '../../logic/AuthContext';
 import { useMoneyFormatter } from '../../logic/currencyFormat';
 import jsPDF from 'jspdf';
 import { useStore } from '../../logic/storeContextImpl';
 
 const RecordSale = ({ onNavigate }) => {
-    const { products, recordTransaction, voidLastTransaction } = useInventory();
+    const { products, recordTransaction, voidLastTransaction, settings } = useInventory();
     const { activeStore } = useStore();
     const money = useMoneyFormatter();
+    const { requireAuth } = useAuth();
+
+    const storeName = String(activeStore?.name || settings?.businessName || '').trim();
+    const isStoreNameReady = !!storeName;
 
     const [selectedProductId, setSelectedProductId] = useState('');
     const [quantity, setQuantity] = useState('');
@@ -77,6 +82,7 @@ const RecordSale = ({ onNavigate }) => {
 
     // Shared barcode processing logic (reused by keyboard and camera scanner)
     const processBarcodeValue = (scannedBarcode) => {
+        if (!requireAuth()) return false;
         // Search for product by barcode field
         const product = products.find(p => 
             p.barcode && p.barcode === scannedBarcode
@@ -149,6 +155,10 @@ const RecordSale = ({ onNavigate }) => {
     };
 
     const handleBarcodeScan = (e) => {
+        if (!requireAuth()) {
+            e.preventDefault();
+            return;
+        }
         if (e.key === 'Enter' && barcodeInput.trim()) {
             e.preventDefault();
             
@@ -166,6 +176,7 @@ const RecordSale = ({ onNavigate }) => {
     };
 
     const handleCameraScan = (barcodeValue) => {
+        if (!requireAuth()) return;
         const success = processBarcodeValue(barcodeValue);
         if (success) {
             // Close camera scanner on successful scan
@@ -185,6 +196,8 @@ const RecordSale = ({ onNavigate }) => {
 
     const handleAddToCart = (e) => {
         e.preventDefault();
+
+        if (!requireAuth()) return;
 
         // Validate
         const validation = validateSale(selectedProduct, quantity);
@@ -234,10 +247,12 @@ const RecordSale = ({ onNavigate }) => {
     };
 
     const removeFromCart = (index) => {
+        if (!requireAuth()) return;
         setCart(prev => prev.filter((_, i) => i !== index));
     };
 
     const updateCartItemQuantity = (index, delta) => {
+        if (!requireAuth()) return;
         const newCart = [...cart];
         const item = newCart[index];
         const product = products.find(p => p.id === item.productId);
@@ -264,11 +279,18 @@ const RecordSale = ({ onNavigate }) => {
     };
 
     const handleCompleteTransaction = () => {
+        if (!requireAuth()) return;
         if (cart.length === 0) return;
+
+        if (!isStoreNameReady) {
+            alert('Loading business profile... Please wait and try again.');
+            return;
+        }
 
         // Prepare receipt data (read-only, doesn't modify checkout)
         const receiptData = {
             receiptId: Date.now().toString(),
+            storeName,
             dateTime: new Date().toISOString(),
             paymentMethod: paymentMethod,
             items: cart.map(item => ({
@@ -307,10 +329,12 @@ const RecordSale = ({ onNavigate }) => {
     };
 
     const handlePrintReceipt = () => {
+        if (!requireAuth()) return;
         window.print();
     };
 
     const handleDownloadPDF = () => {
+        if (!requireAuth()) return;
         if (!lastReceipt) return;
 
         const doc = new jsPDF({
@@ -337,6 +361,14 @@ const RecordSale = ({ onNavigate }) => {
                 doc.addImage(activeStore.logoBase64, imgType, x, yPos, imgWidth, imgHeight);
                 yPos += imgHeight + 4;
             } catch { /* ignore logo render errors */ }
+        }
+
+        const pdfStoreName = String(lastReceipt.storeName || '').trim();
+        if (pdfStoreName) {
+            doc.setFontSize(12);
+            doc.text(pdfStoreName, pageWidth / 2, yPos, { align: 'center' });
+            yPos += 6;
+            doc.setFontSize(16);
         }
         doc.text('RECEIPT', pageWidth / 2, yPos, { align: 'center' });
         yPos += 8;
@@ -451,7 +483,10 @@ const RecordSale = ({ onNavigate }) => {
                     />
                     <button
                         type="button"
-                        onClick={() => setShowCameraScanner(true)}
+                        onClick={() => {
+                            if (!requireAuth()) return;
+                            setShowCameraScanner(true);
+                        }}
                         style={{
                             background: 'var(--accent-primary)',
                             border: 'none',
@@ -735,8 +770,13 @@ const RecordSale = ({ onNavigate }) => {
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        const reason = window.prompt('Enter reason for undo (optional):', '');
-                                        voidLastTransaction(reason || '');
+                                        const reason = window.prompt('Enter reason for undo (required):', '');
+                                        const trimmed = String(reason || '').trim();
+                                        if (!trimmed) {
+                                            alert('Undo reason is required.');
+                                            return;
+                                        }
+                                        voidLastTransaction(trimmed);
                                     }}
                                     style={{
                                         marginBottom: 'var(--spacing-sm)',
@@ -757,7 +797,7 @@ const RecordSale = ({ onNavigate }) => {
                                 onClick={handleCompleteTransaction}
                                 icon={Calculator}
                                 fullWidth
-                                disabled={cart.length === 0}
+                                disabled={cart.length === 0 || !isStoreNameReady}
                                 style={{
                                     fontSize: '1.1rem',
                                     fontWeight: 700,
@@ -801,6 +841,11 @@ const RecordSale = ({ onNavigate }) => {
                         }}>
                         {/* Receipt Header */}
                         <div style={{ textAlign: 'center', marginBottom: 'var(--spacing-lg)', borderBottom: '2px solid var(--border-color)', paddingBottom: 'var(--spacing-md)' }}>
+                            {!!String(lastReceipt.storeName || '').trim() && (
+                                <div style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                                    {String(lastReceipt.storeName || '').trim()}
+                                </div>
+                            )}
                             <h2 style={{ margin: 0, fontSize: '1.5rem' }}>RECEIPT</h2>
                             <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                                 {new Date(lastReceipt.dateTime).toLocaleString()}

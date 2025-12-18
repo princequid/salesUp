@@ -140,16 +140,21 @@ export const exportToPDF = (stats, sales, filterType) => {
 };
 
 export const exportToCSV = (sales, filterType) => {
-    let csvRows = ["Date,Payment Method,Item,Quantity,Total Price,Profit"];
+    const options = arguments.length > 2 ? (arguments[2] || {}) : {};
+    const includeProfit = options.includeProfit !== false;
+
+    let csvRows = [includeProfit ? "Date,Payment Method,Item,Quantity,Total Price,Profit" : "Date,Payment Method,Item,Quantity,Total Price"];
 
     sales.forEach(s => {
         const dateStr = new Date(s.date).toLocaleDateString();
         if (s.items) {
             s.items.forEach(item => {
-                csvRows.push(`${dateStr},${s.payment_method},"${item.name}",${item.quantity},${item.total},${item.profit}`);
+                const base = `${dateStr},${s.payment_method},"${item.name}",${item.quantity},${item.total}`;
+                csvRows.push(includeProfit ? `${base},${item.profit}` : base);
             });
         } else {
-            csvRows.push(`${dateStr},${s.payment_method},Product,${s.quantity},${s.total_price},${s.profit}`);
+            const base = `${dateStr},${s.payment_method},Product,${s.quantity},${s.total_price}`;
+            csvRows.push(includeProfit ? `${base},${s.profit}` : base);
         }
     });
 

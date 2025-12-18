@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import AppIconButton from './AppIconButton';
 import AppCard from './AppCard';
 
-const AppModal = ({ isOpen, onClose, title, children }) => {
+const AppModal = ({ isOpen, onClose, title, children, maxWidth = '500px', maxHeight = '90vh' }) => {
     if (!isOpen) return null;
 
     return (
@@ -25,8 +25,8 @@ const AppModal = ({ isOpen, onClose, title, children }) => {
                 className="animate-slide-up"
                 style={{
                     width: '100%',
-                    maxWidth: '500px',
-                    maxHeight: '90vh',
+                    maxWidth,
+                    maxHeight,
                     overflowY: 'auto'
                 }}
             >

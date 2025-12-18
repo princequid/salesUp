@@ -3,11 +3,12 @@ import { useInventory } from '../../logic/InventoryContext';
 import { useMoneyFormatter } from '../../logic/currencyFormat';
 import { useRole } from '../../logic/roleUtils';
 import { calculateDailyStats, getTopSellingItems } from '../../logic/reportLogic';
-import { TrendingUp, DollarSign, AlertTriangle, Plus, ShoppingCart, FileText, Calculator, Settings } from 'lucide-react';
+import { TrendingUp, DollarSign, AlertTriangle, Plus, ShoppingCart, FileText, Calculator, Settings, Calendar } from 'lucide-react';
 import PageLayout from '../../components/PageLayout';
 import PermissionGate from '../../components/PermissionGate';
 import ChartWrapper from '../../components/ChartWrapper';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { useStore } from '../../logic/storeContextImpl';
 
 // Lightweight count-up animation without external libraries
 const CountUpValue = ({ value = 0, formatter = (v) => String(v), duration = 600 }) => {
@@ -47,20 +48,152 @@ const CountUpValue = ({ value = 0, formatter = (v) => String(v), duration = 600 
     return (<span>{formatter(display)}</span>);
 };
 
+const LowStockCard = ({ value, onClick, clickable }) => (
+    <div
+        className="glass-panel"
+        style={{ padding: '1.25rem', minHeight: '150px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', cursor: clickable ? 'pointer' : 'default', borderLeft: '4px solid var(--accent-danger)', transition: 'transform 200ms ease, box-shadow 200ms ease' }}
+        onClick={clickable ? onClick : undefined}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-hover)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--glass-shadow)'; }}
+    >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
+            <AlertTriangle size={24} color="var(--accent-danger)" />
+            <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600 }}>Low Stock</span>
+        </div>
+        <div style={{ fontSize: 'clamp(1.25rem, 2.5vw + 0.5rem, 2rem)', fontWeight: 800, color: 'var(--accent-danger)', lineHeight: 1.2 }}>
+            <CountUpValue value={value} formatter={(v) => Math.round(Number(v) || 0)} />
+        </div>
+    </div>
+);
+
+const ExpiredProductsCard = ({ value, topNames }) => (
+    <div
+        className="glass-panel"
+        style={{ padding: '1.25rem', minHeight: '150px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--accent-danger)', transition: 'transform 200ms ease, box-shadow 200ms ease' }}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-hover)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--glass-shadow)'; }}
+    >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
+            <Calendar size={24} color="var(--accent-danger)" />
+            <span className="truncate" style={{ fontSize: 'var(--font-sm)', fontWeight: 600 }}>Expired Products</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <div style={{ fontSize: 'clamp(1.25rem, 2.5vw + 0.5rem, 2rem)', fontWeight: 800, color: 'var(--accent-danger)', lineHeight: 1.2 }}>
+                <CountUpValue value={value} formatter={(v) => Math.round(Number(v) || 0)} />
+            </div>
+            {Array.isArray(topNames) && topNames.length > 0 && (
+                <div className="truncate" style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                    {topNames.join(', ')}
+                </div>
+            )}
+        </div>
+    </div>
+);
+
+const TopSellingItemsCard = ({ topItem }) => (
+    <div
+        className="glass-panel"
+        style={{ padding: '1.25rem', minHeight: '150px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--accent-warning)', transition: 'transform 200ms ease, box-shadow 200ms ease' }}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-hover)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--glass-shadow)'; }}
+    >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
+            <ShoppingCart size={24} color="var(--accent-warning)" />
+            <span className="truncate" style={{ fontSize: 'var(--font-sm)', fontWeight: 600 }}>Top Selling</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <div style={{ fontSize: 'clamp(1.25rem, 2.5vw + 0.5rem, 2rem)', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2, overflowWrap: 'anywhere' }}>
+                <CountUpValue value={topItem?.quantity || 0} formatter={(v) => Math.round(Number(v) || 0)} />
+            </div>
+            <div className="truncate" style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                {topItem?.name || 'No sales today'}
+            </div>
+        </div>
+    </div>
+);
+
 const Dashboard = ({ onNavigate }) => {
-    const { sales, products, settings } = useInventory();
+    const { sales, products, settings, transactions } = useInventory();
     const money = useMoneyFormatter();
     const { userRole, ROLES } = useRole();
+    const { activeStore } = useStore();
 
-    const stats = useMemo(() =>
-        calculateDailyStats(sales, products, settings.lowStockThreshold),
-        [sales, products, settings.lowStockThreshold]
-    );
+    const isAdminMode = userRole === ROLES.ADMIN;
+
+    const getLocalDateKey = () => {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
+    const [todayKey, setTodayKey] = React.useState(getLocalDateKey);
+
+    React.useEffect(() => {
+        const now = new Date();
+        const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const ms = Math.max(0, next.getTime() - now.getTime());
+        const id = setTimeout(() => {
+            setTodayKey(getLocalDateKey());
+        }, ms + 250);
+        return () => clearTimeout(id);
+    }, [todayKey]);
+
+    const stats = useMemo(() => {
+        if (isAdminMode) {
+            return calculateDailyStats(sales, products, settings.lowStockThreshold);
+        }
+
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const validToday = (sales || [])
+            .filter((s) => !s.voided)
+            .filter((s) => new Date(s.date) >= today);
+
+        const totalSales = validToday.reduce((sum, s) => sum + (Number(s.total_price) || 0), 0);
+        const lowStockCount = (products || []).filter((p) => (Number(p.quantity) || 0) <= (Number(settings.lowStockThreshold) || 0)).length;
+
+        return { totalSales, lowStockCount };
+    }, [isAdminMode, sales, products, settings.lowStockThreshold]);
 
     const topSelling = useMemo(() =>
         getTopSellingItems(sales, products),
         [sales, products]
     );
+
+    const expiredProducts = useMemo(() => {
+        const parts = String(todayKey || '').split('-');
+        const y = Number(parts[0]);
+        const m = Number(parts[1]);
+        const d = Number(parts[2]);
+        const todayStart = new Date(y, (m || 0) - 1, d);
+        todayStart.setHours(0, 0, 0, 0);
+
+        return (products || []).filter((p) => {
+            const raw = p?.expirationDate;
+            if (raw == null || String(raw).trim() === '') return false;
+            const r = String(raw).trim();
+            const s = r.split('-');
+            if (s.length !== 3) return false;
+            const py = Number(s[0]);
+            const pm = Number(s[1]);
+            const pd = Number(s[2]);
+            if (!Number.isFinite(py) || !Number.isFinite(pm) || !Number.isFinite(pd)) return false;
+            const exp = new Date(py, (pm || 0) - 1, pd);
+            exp.setHours(0, 0, 0, 0);
+            return exp.getTime() < todayStart.getTime();
+        });
+    }, [products, todayKey]);
+
+    const expiredTopNames = useMemo(() => (
+        (expiredProducts || [])
+            .slice()
+            .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+            .slice(0, 2)
+            .map((p) => p?.name)
+            .filter(Boolean)
+    ), [expiredProducts]);
 
     const threshold = Number(settings.lowStockThreshold) || 5;
     const lowStockItems = useMemo(() => (
@@ -79,7 +212,7 @@ const Dashboard = ({ onNavigate }) => {
             d.setDate(now.getDate() - i);
             d.setHours(0, 0, 0, 0);
             const key = d.toISOString().slice(0, 10);
-            map.set(key, { date: new Date(d), sales: 0, profit: 0 });
+            map.set(key, isAdminMode ? { date: new Date(d), sales: 0, profit: 0 } : { date: new Date(d), sales: 0 });
         }
 
         (sales || []).filter(s => !s.voided).forEach(tx => {
@@ -89,16 +222,23 @@ const Dashboard = ({ onNavigate }) => {
             if (map.has(key)) {
                 const row = map.get(key);
                 row.sales += Number(tx.total_price) || 0;
-                row.profit += Number(tx.profit) || 0;
+                if (isAdminMode) {
+                    row.profit += Number(tx.profit) || 0;
+                }
             }
         });
 
-        return Array.from(map.values()).map(r => ({
-            name: `${r.date.getMonth()+1}/${r.date.getDate()}`,
-            sales: Number(r.sales.toFixed(2)),
-            profit: Number(r.profit.toFixed(2))
-        }));
-    }, [sales]);
+        return Array.from(map.values()).map(r => {
+            const base = {
+                name: `${r.date.getMonth()+1}/${r.date.getDate()}`,
+                sales: Number(r.sales.toFixed(2))
+            };
+            if (isAdminMode) {
+                return { ...base, profit: Number(r.profit.toFixed(2)) };
+            }
+            return base;
+        });
+    }, [sales, isAdminMode]);
 
     return (
         <PageLayout>
@@ -107,7 +247,7 @@ const Dashboard = ({ onNavigate }) => {
                 <div>
                     <h1>Dashboard</h1>
                     <p style={{ color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {settings.businessName || 'Overview'}
+                        {activeStore?.name || settings.businessName || 'Overview'}
                         <span style={{
                             fontSize: '0.7rem',
                             padding: '0.2rem 0.5rem',
@@ -144,37 +284,32 @@ const Dashboard = ({ onNavigate }) => {
                     </div>
                 </div>
 
-                <div
-                    className="glass-panel"
-                    style={{ padding: '1.25rem', minHeight: '150px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--accent-success)', transition: 'transform 200ms ease, box-shadow 200ms ease' }}
-                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-hover)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--glass-shadow)'; }}
-                >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
-                        <TrendingUp size={24} color="var(--accent-success)" />
-                        <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600 }}>Profit Today</span>
-                    </div>
-                    <div style={{ fontSize: 'clamp(1.25rem, 2.5vw + 0.5rem, 2rem)', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2, overflowWrap: 'anywhere' }}>
-                        <CountUpValue value={stats.totalProfit} formatter={money} />
-                    </div>
-                </div>
+                {isAdminMode ? (
+                    <>
+                        <div
+                            className="glass-panel"
+                            style={{ padding: '1.25rem', minHeight: '150px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: '4px solid var(--accent-success)', transition: 'transform 200ms ease, box-shadow 200ms ease' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-hover)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--glass-shadow)'; }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
+                                <TrendingUp size={24} color="var(--accent-success)" />
+                                <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600 }}>Profit Today</span>
+                            </div>
+                            <div style={{ fontSize: 'clamp(1.25rem, 2.5vw + 0.5rem, 2rem)', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2, overflowWrap: 'anywhere' }}>
+                                <CountUpValue value={stats.totalProfit} formatter={money} />
+                            </div>
+                        </div>
 
-                <PermissionGate screen="lowStock">
-                    <div className="glass-panel"
-                        style={{ padding: '1.25rem', minHeight: '150px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', cursor: 'pointer', borderLeft: '4px solid var(--accent-danger)', transition: 'transform 200ms ease, box-shadow 200ms ease' }}
-                        onClick={() => onNavigate('lowStock')}
-                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-hover)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--glass-shadow)'; }}
-                    >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
-                            <AlertTriangle size={24} color="var(--accent-danger)" />
-                            <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600 }}>Low Stock</span>
-                        </div>
-                        <div style={{ fontSize: 'clamp(1.25rem, 2.5vw + 0.5rem, 2rem)', fontWeight: 800, color: 'var(--accent-danger)', lineHeight: 1.2 }}>
-                            <CountUpValue value={stats.lowStockCount} formatter={(v) => Math.round(Number(v) || 0)} />
-                        </div>
-                    </div>
-                </PermissionGate>
+                        <PermissionGate screen="lowStock">
+                            <LowStockCard value={stats.lowStockCount} clickable onClick={() => onNavigate('lowStock')} />
+                        </PermissionGate>
+                    </>
+                ) : (
+                    <>
+                        <LowStockCard value={stats.lowStockCount} clickable={false} />
+                    </>
+                )}
             </div>
 
             {/* Main Sections Grid */}
@@ -191,7 +326,9 @@ const Dashboard = ({ onNavigate }) => {
                                     <YAxis stroke="var(--text-secondary)" width={60} />
                                     <Tooltip contentStyle={{ borderRadius: 8 }} />
                                     <Line type="monotone" dataKey="sales" name="Sales" stroke="var(--accent-primary)" strokeWidth={2} dot={false} />
-                                    <Line type="monotone" dataKey="profit" name="Profit" stroke="var(--accent-success)" strokeWidth={2} dot={false} />
+                                    {isAdminMode && (
+                                        <Line type="monotone" dataKey="profit" name="Profit" stroke="var(--accent-success)" strokeWidth={2} dot={false} />
+                                    )}
                                 </LineChart>
                             </ResponsiveContainer>
                         </ChartWrapper>
@@ -282,6 +419,8 @@ const Dashboard = ({ onNavigate }) => {
                         )}
                     </div>
                 </div>
+
+                <ExpiredProductsCard value={expiredProducts.length} topNames={expiredTopNames} />
             </div>
 
         </PageLayout>

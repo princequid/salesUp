@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import * as productLogic from './productLogic';
 import * as salesLogic from './salesLogic';
 import * as stockLogic from './stockLogic';
 import cloudSyncService from './cloudSyncService';
 import { useStore } from './storeContextImpl';
+import { useRole } from './roleUtils';
 
 const InventoryContext = createContext();
 
@@ -26,6 +27,9 @@ const INITIAL_STATE = {
 
 export const InventoryProvider = ({ children }) => {
   const { activeStoreId } = useStore();
+  const { userRole, ROLES } = useRole();
+  const isCashierMode = userRole === ROLES.CASHIER;
+  const isGuestMode = userRole === ROLES.GUEST;
   const LOCAL_STORAGE_KEY = `salesUp_data_v1_${activeStoreId}`;
 
   const [data, setData] = useState(() => {
@@ -196,6 +200,7 @@ export const InventoryProvider = ({ children }) => {
         const fullReceipt = {
           id: transactionId,
           date: transactionDate,
+          storeName: receiptData.storeName,
           receiptId: receiptData.receiptId || transactionId,
           paymentMethod: payment_method,
           items: receiptData.items || transactionItems.map(item => ({
@@ -232,17 +237,67 @@ export const InventoryProvider = ({ children }) => {
     }));
   };
 
+  const assertNotGuest = (message = 'You must register your business or log in to continue.') => {
+    if (isGuestMode) {
+      throw new Error(message);
+    }
+  };
+
+  const guardedAddProduct = (product) => {
+    assertNotGuest();
+    addProduct(product);
+  };
+
+  const guardedUpdateProduct = (id, updates) => {
+    assertNotGuest();
+    updateProduct(id, updates);
+  };
+
+  const guardedDeleteProduct = (id) => {
+    assertNotGuest();
+    deleteProduct(id);
+  };
+
+  const guardedRecordSale = (saleDetails) => {
+    assertNotGuest();
+    recordSale(saleDetails);
+  };
+
+  const guardedRecordTransaction = (cartItems, payment_method = 'Cash', receiptData = null) => {
+    assertNotGuest();
+    recordTransaction(cartItems, payment_method, receiptData);
+  };
+
+  const guardedUpdateSettings = (newSettings) => {
+    assertNotGuest();
+    updateSettings(newSettings);
+  };
+
+  const guardedVoidTransaction = (transactionId, reason = '') => {
+    assertNotGuest();
+    voidTransaction(transactionId, reason);
+  };
+
+  const guardedVoidLastTransaction = (reason = '') => {
+    assertNotGuest();
+    voidLastTransaction(reason);
+  };
+
   // Selectors Helpers (using stockLogic for consistent filtering)
   const lowStockItems = stockLogic.getLowStockItems(data.products, data.settings.lowStockThreshold);
 
   // Void a specific transaction by id (audit-safe: marks as voided, restores stock)
   const voidTransaction = (transactionId, reason = '') => {
+    const trimmedReason = String(reason || '').trim();
+    if (!trimmedReason) return;
     setData(prev => {
       const salesIndex = prev.sales.findIndex(s => s.id === transactionId);
       if (salesIndex === -1) return prev;
 
       const sale = prev.sales[salesIndex];
-      if (sale.voided) return prev; // already voided
+      if (sale.voided || sale.isVoided) return prev; // already voided
+
+      const voidedAt = new Date().toISOString();
 
       let updatedProducts = [...prev.products];
       // Restore stock for each item in the transaction
@@ -256,8 +311,10 @@ export const InventoryProvider = ({ children }) => {
       updatedSales[salesIndex] = {
         ...sale,
         voided: true,
-        voidReason: reason || '',
-        voidDate: new Date().toISOString()
+        isVoided: true,
+        voidReason: trimmedReason,
+        voidedAt,
+        voidDate: voidedAt
       };
 
       // Mark matching receipt voided (keep record)
@@ -265,13 +322,17 @@ export const InventoryProvider = ({ children }) => {
       const txIndex = updatedTransactions.findIndex(r => r.id === transactionId || r.receiptId === transactionId);
       if (txIndex !== -1) {
         const r = updatedTransactions[txIndex];
-        updatedTransactions = [...updatedTransactions];
-        updatedTransactions[txIndex] = {
-          ...r,
-          voided: true,
-          voidReason: reason || '',
-          voidDate: new Date().toISOString()
-        };
+        if (!(r.voided || r.isVoided)) {
+          updatedTransactions = [...updatedTransactions];
+          updatedTransactions[txIndex] = {
+            ...r,
+            voided: true,
+            isVoided: true,
+            voidReason: trimmedReason,
+            voidedAt,
+            voidDate: voidedAt
+          };
+        }
       }
 
       return {
@@ -285,9 +346,15 @@ export const InventoryProvider = ({ children }) => {
 
   // Undo the most recent non-voided transaction
   const voidLastTransaction = (reason = '') => {
+    const trimmedReason = String(reason || '').trim();
+    if (!trimmedReason) return;
     setData(prev => {
       const latest = prev.sales.find(s => !s.voided);
       if (!latest) return prev;
+
+      if (latest.voided || latest.isVoided) return prev;
+
+      const voidedAt = new Date().toISOString();
 
       let updatedProducts = [...prev.products];
       (latest.items || []).forEach(item => {
@@ -299,21 +366,27 @@ export const InventoryProvider = ({ children }) => {
       const updatedSales = prev.sales.map(s => s.id === latest.id ? ({
         ...s,
         voided: true,
-        voidReason: reason || '',
-        voidDate: new Date().toISOString()
+        isVoided: true,
+        voidReason: trimmedReason,
+        voidedAt,
+        voidDate: voidedAt
       }) : s);
 
       let updatedTransactions = prev.transactions || [];
       const txIndex = updatedTransactions.findIndex(r => r.id === latest.id || r.receiptId === latest.id);
       if (txIndex !== -1) {
         const r = updatedTransactions[txIndex];
-        updatedTransactions = [...updatedTransactions];
-        updatedTransactions[txIndex] = {
-          ...r,
-          voided: true,
-          voidReason: reason || '',
-          voidDate: new Date().toISOString()
-        };
+        if (!(r.voided || r.isVoided)) {
+          updatedTransactions = [...updatedTransactions];
+          updatedTransactions[txIndex] = {
+            ...r,
+            voided: true,
+            isVoided: true,
+            voidReason: trimmedReason,
+            voidedAt,
+            voidDate: voidedAt
+          };
+        }
       }
 
       return {
@@ -347,20 +420,55 @@ export const InventoryProvider = ({ children }) => {
     return cloudSyncService.getConnectionStatus();
   };
 
+  const exposedProducts = useMemo(() => {
+    if (!isCashierMode) return data.products;
+    return (data.products || []).map(({ cost_price, ...rest }) => rest);
+  }, [data.products, isCashierMode]);
+
+  const exposedSales = useMemo(() => {
+    if (!isCashierMode) return data.sales;
+    return (data.sales || []).map((s) => {
+      const { profit, ...saleRest } = s || {};
+      if (!saleRest.items) return saleRest;
+      return {
+        ...saleRest,
+        items: (saleRest.items || []).map((item) => {
+          const { profit: itemProfit, cost, ...itemRest } = item || {};
+          return itemRest;
+        })
+      };
+    });
+  }, [data.sales, isCashierMode]);
+
+  const exposedTransactions = useMemo(() => {
+    if (!isCashierMode) return data.transactions;
+    return (data.transactions || []).map((t) => {
+      const { profit, ...txRest } = t || {};
+      if (!txRest.items) return txRest;
+      return {
+        ...txRest,
+        items: (txRest.items || []).map((item) => {
+          const { profit: itemProfit, cost, ...itemRest } = item || {};
+          return itemRest;
+        })
+      };
+    });
+  }, [data.transactions, isCashierMode]);
+
   const value = {
-    products: data.products,
-    sales: data.sales,
-    transactions: data.transactions,
+    products: exposedProducts,
+    sales: exposedSales,
+    transactions: exposedTransactions,
     settings: data.settings,
-    addProduct,
-    updateProduct,
-    deleteProduct,
-    recordSale,
-    recordTransaction,
-    updateSettings,
+    addProduct: guardedAddProduct,
+    updateProduct: guardedUpdateProduct,
+    deleteProduct: guardedDeleteProduct,
+    recordSale: guardedRecordSale,
+    recordTransaction: guardedRecordTransaction,
+    updateSettings: guardedUpdateSettings,
     lowStockItems,
-    voidTransaction,
-    voidLastTransaction,
+    voidTransaction: guardedVoidTransaction,
+    voidLastTransaction: guardedVoidLastTransaction,
     syncToCloud,
     syncFromCloud,
     getLastSyncTime,

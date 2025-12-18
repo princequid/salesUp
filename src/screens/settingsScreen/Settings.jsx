@@ -5,6 +5,8 @@ import { useRole } from '../../logic/roleUtils';
 import { useStore } from '../../logic/storeContextImpl';
 import { useTheme } from '../../logic/themeContextImpl';
 import PermissionGate from '../../components/PermissionGate';
+import ActionGuard from '../../components/ActionGuard';
+import { useAuth } from '../../logic/AuthContext';
 import cloudSyncService, { SYNC_STATUS } from '../../logic/cloudSyncService';
 import { ArrowLeft, Save, Building, Bell, Moon, Smartphone, UserCircle, Cloud, CloudOff, RefreshCw, CheckCircle, XCircle, Wifi, WifiOff, Store, Plus, MapPin, Trash2 } from 'lucide-react';
 import { AppButton, AppCard, AppInput, AppSectionHeader, AppIconButton } from '../../components';
@@ -17,11 +19,25 @@ const Settings = ({ onNavigate }) => {
     const { userRole, changeRole, ROLES } = useRole();
     const { stores, activeStore, addStore, updateStore, deleteStore, switchStore } = useStore();
     const { setLogoForActiveStore, clearLogoForActiveStore } = useStore();
+    const { requireAuth, listCashiers, createCashier, setCashierActive, resetCashierPassword } = useAuth();
     const [logoPreview, setLogoPreview] = useState(activeStore?.logoBase64 || '');
     const { currentTheme, setTheme } = useTheme();
 
+    const [isSavingSettings, setIsSavingSettings] = useState(false);
+    const [businessNameError, setBusinessNameError] = useState('');
+
     const [adminSwitchPassword, setAdminSwitchPassword] = useState('');
     const [adminSwitchPasswordConfirm, setAdminSwitchPasswordConfirm] = useState('');
+
+    const [cashiers, setCashiers] = useState([]);
+    const [newCashierUsername, setNewCashierUsername] = useState('');
+    const [newCashierPassword, setNewCashierPassword] = useState('');
+    const [newCashierPasswordConfirm, setNewCashierPasswordConfirm] = useState('');
+
+    const isAdminMode = userRole === ROLES.ADMIN;
+    const isGuestMode = userRole === ROLES.GUEST;
+    const adminOnlyText = 'Only Admins can edit this setting';
+    const guestPromptText = 'You must register your business or log in to edit this setting.';
 
     const hashPassword = async (password) => {
         if (!window.crypto?.subtle) {
@@ -33,6 +49,56 @@ const Settings = ({ onNavigate }) => {
         return Array.from(new Uint8Array(digest))
             .map((b) => b.toString(16).padStart(2, '0'))
             .join('');
+    };
+
+    const refreshCashiers = () => {
+        try {
+            setCashiers(listCashiers());
+        } catch {
+            setCashiers([]);
+        }
+    };
+
+    const handleCreateCashier = async (e) => {
+        if (e?.preventDefault) e.preventDefault();
+        try {
+            await createCashier({
+                username: newCashierUsername,
+                password: newCashierPassword,
+                passwordConfirm: newCashierPasswordConfirm
+            });
+            setNewCashierUsername('');
+            setNewCashierPassword('');
+            setNewCashierPasswordConfirm('');
+            refreshCashiers();
+            alert('Cashier account created.');
+        } catch (err) {
+            alert(err?.message || 'Failed to create cashier.');
+        }
+    };
+
+    const handleToggleCashier = async (cashier) => {
+        try {
+            await setCashierActive({ cashierId: cashier?.id, isActive: !(cashier?.isActive === true) });
+            refreshCashiers();
+        } catch (err) {
+            alert(err?.message || 'Failed to update cashier.');
+        }
+    };
+
+    const handleResetCashierPassword = async (cashier) => {
+        const p1 = window.prompt(`Enter a new password for ${cashier?.username || 'cashier'}:`);
+        if (p1 === null) return;
+        const p2 = window.prompt('Confirm the new password:');
+        if (p2 === null) return;
+
+        try {
+            await resetCashierPassword({ cashierId: cashier?.id, newPassword: p1, newPasswordConfirm: p2 });
+            refreshCashiers();
+            alert('Cashier password reset.');
+        } catch (err) {
+            alert(err?.message || 'Failed to reset password.');
+        }
     };
 
     const handleSetAdminSwitchPassword = async () => {
@@ -68,7 +134,7 @@ const Settings = ({ onNavigate }) => {
 
     // Local state for form
     const [formData, setFormData] = useState({
-        businessName: settings.businessName || '',
+        businessName: activeStore?.name || settings.businessName || '',
         lowStockThreshold: settings.lowStockThreshold || 5,
         currency: settings.currency || currency.code || 'USD'
     });
@@ -99,6 +165,22 @@ const Settings = ({ onNavigate }) => {
         };
     }, []);
 
+    useEffect(() => {
+        setFormData(prev => ({
+            ...prev,
+            businessName: activeStore?.name || settings.businessName || ''
+        }));
+    }, [activeStore?.id]);
+
+    useEffect(() => {
+        try {
+            const next = listCashiers();
+            setCashiers(next);
+        } catch {
+            setCashiers([]);
+        }
+    }, [activeStore?.id, listCashiers]);
+
     // Ask for notification permission in settings context (non-intrusive)
     useEffect(() => {
         requestNotificationPermission();
@@ -110,21 +192,58 @@ const Settings = ({ onNavigate }) => {
             setTheme(value);
             return; // do not store theme locally
         }
+
+        if (!isAdminMode && (name === 'businessName' || name === 'lowStockThreshold')) {
+            if (isGuestMode) requireAuth(guestPromptText);
+            return;
+        }
+
+        if (name === 'businessName' && businessNameError) {
+            setBusinessNameError('');
+        }
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
 
+        if (!isAdminMode) {
+            if (isGuestMode) {
+                requireAuth(guestPromptText);
+                return;
+            }
+            alert(adminOnlyText);
+            return;
+        }
+
+        const trimmedBusinessName = String(formData.businessName || '').trim();
+        if (!trimmedBusinessName) {
+            setBusinessNameError('Shop name is required');
+            return;
+        }
+
+        setIsSavingSettings(true);
+
         // Update global currency via context
         changeCurrency(formData.currency);
+
+        // Persist store name (single source of truth)
+        try {
+            updateStore(activeStore.id, { name: trimmedBusinessName });
+        } catch (err) {
+            setIsSavingSettings(false);
+            alert(err?.message || 'Failed to update shop name.');
+            return;
+        }
 
         // Persist other settings (without currencySymbol, using global CurrencyContext)
         updateSettings({
             ...formData,
+            businessName: trimmedBusinessName,
             lowStockThreshold: parseInt(formData.lowStockThreshold, 10)
         });
 
+        setIsSavingSettings(false);
         alert("Settings Saved Successfully!");
     };
 
@@ -187,6 +306,14 @@ const Settings = ({ onNavigate }) => {
     };
 
     const handleLogoFileChange = (e) => {
+        if (!isAdminMode) {
+            if (isGuestMode) {
+                requireAuth(guestPromptText);
+                return;
+            }
+            alert(adminOnlyText);
+            return;
+        }
         const file = e.target.files && e.target.files[0];
         if (!file) return;
         if (!/^image\//i.test(file.type)) {
@@ -201,11 +328,27 @@ const Settings = ({ onNavigate }) => {
     };
 
     const handleSaveLogo = () => {
+        if (!isAdminMode) {
+            if (isGuestMode) {
+                requireAuth(guestPromptText);
+                return;
+            }
+            alert(adminOnlyText);
+            return;
+        }
         setLogoForActiveStore(logoPreview || '');
         alert('Logo saved for this store.');
     };
 
     const handleRemoveLogo = () => {
+        if (!isAdminMode) {
+            if (isGuestMode) {
+                requireAuth(guestPromptText);
+                return;
+            }
+            alert(adminOnlyText);
+            return;
+        }
         clearLogoForActiveStore();
         setLogoPreview('');
         alert('Logo removed for this store.');
@@ -235,13 +378,41 @@ const Settings = ({ onNavigate }) => {
                                 )}
                             </div>
                             <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center', flexWrap: 'wrap' }}>
-                                <input type="file" accept="image/*" onChange={handleLogoFileChange} />
-                                <AppButton type="button" onClick={handleSaveLogo} variant="secondary">Save Logo</AppButton>
+                                {isGuestMode ? (
+                                    <ActionGuard action="stores.manage" reason={guestPromptText}>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleLogoFileChange}
+                                            title={guestPromptText}
+                                            style={{ opacity: 0.6, cursor: 'not-allowed' }}
+                                        />
+                                    </ActionGuard>
+                                ) : (
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleLogoFileChange}
+                                        disabled={!isAdminMode}
+                                        title={!isAdminMode ? adminOnlyText : ''}
+                                        style={!isAdminMode ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+                                    />
+                                )}
+                                <PermissionGate action="stores.manage">
+                                    <AppButton type="button" onClick={handleSaveLogo} variant="secondary">Save Logo</AppButton>
+                                </PermissionGate>
                                 {activeStore?.logoBase64 && (
-                                    <AppButton type="button" onClick={handleRemoveLogo} variant="danger">Remove Logo</AppButton>
+                                    <PermissionGate action="stores.manage">
+                                        <AppButton type="button" onClick={handleRemoveLogo} variant="danger">Remove Logo</AppButton>
+                                    </PermissionGate>
                                 )}
                             </div>
                         </div>
+                        {!isAdminMode && (
+                            <p className="text-caption" style={{ color: 'var(--text-secondary)', marginTop: 'var(--spacing-sm)' }}>
+                                {isGuestMode ? guestPromptText : adminOnlyText}
+                            </p>
+                        )}
                     </div>
 
                     <PermissionGate action="users.manage">
@@ -294,6 +465,118 @@ const Settings = ({ onNavigate }) => {
                                 >
                                     Clear Password
                                 </AppButton>
+                            </div>
+                        </div>
+                    </PermissionGate>
+
+                    <PermissionGate action="users.manage">
+                        <div>
+                            <AppSectionHeader title="Cashier Accounts" />
+                            <p className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
+                                Create and manage cashier login credentials for this business.
+                            </p>
+
+                            <div style={{
+                                padding: 'var(--spacing-md)',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: 'var(--radius-sm)',
+                                display: 'grid',
+                                gap: 'var(--spacing-md)',
+                                marginBottom: 'var(--spacing-md)'
+                            }}>
+                                <AppInput
+                                    label="Cashier Username"
+                                    name="newCashierUsername"
+                                    value={newCashierUsername}
+                                    onChange={(e) => setNewCashierUsername(e.target.value)}
+                                    placeholder="e.g. cashier01"
+                                />
+
+                                <AppInput
+                                    label="Password"
+                                    type="password"
+                                    name="newCashierPassword"
+                                    value={newCashierPassword}
+                                    onChange={(e) => setNewCashierPassword(e.target.value)}
+                                    placeholder="Minimum 4 characters"
+                                />
+
+                                <AppInput
+                                    label="Confirm Password"
+                                    type="password"
+                                    name="newCashierPasswordConfirm"
+                                    value={newCashierPasswordConfirm}
+                                    onChange={(e) => setNewCashierPasswordConfirm(e.target.value)}
+                                    placeholder="Re-enter password"
+                                />
+
+                                <AppButton type="button" variant="secondary" onClick={handleCreateCashier}>
+                                    Create Cashier
+                                </AppButton>
+                            </div>
+
+                            <div style={{
+                                border: '1px solid var(--border-color)',
+                                borderRadius: 'var(--radius-sm)',
+                                overflow: 'hidden'
+                            }}>
+                                <div style={{
+                                    padding: '0.75rem',
+                                    background: 'var(--bg-card)',
+                                    borderBottom: '1px solid var(--border-color)',
+                                    fontWeight: 600,
+                                    fontSize: '0.9rem'
+                                }}>
+                                    Existing Cashiers ({cashiers.length})
+                                </div>
+
+                                {cashiers.length === 0 ? (
+                                    <div style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                                        No cashier accounts yet.
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'grid' }}>
+                                        {cashiers.map((cashier) => (
+                                            <div
+                                                key={cashier.id}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    gap: 'var(--spacing-md)',
+                                                    padding: '0.75rem',
+                                                    borderTop: '1px solid var(--border-color)'
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                                    <div style={{ fontWeight: 600 }}>{cashier.username}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                        Status: {cashier.isActive === false ? 'Disabled' : 'Active'}
+                                                    </div>
+                                                </div>
+
+                                                <div style={{ display: 'flex', gap: 'var(--spacing-sm)', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                                    <AppButton
+                                                        type="button"
+                                                        variant={cashier.isActive === false ? 'secondary' : 'ghost'}
+                                                        onClick={() => handleToggleCashier(cashier)}
+                                                    >
+                                                        {cashier.isActive === false ? 'Enable' : 'Disable'}
+                                                    </AppButton>
+
+                                                    <AppButton
+                                                        type="button"
+                                                        variant="ghost"
+                                                        onClick={() => handleResetCashierPassword(cashier)}
+                                                    >
+                                                        Reset Password
+                                                    </AppButton>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </PermissionGate>
@@ -528,55 +811,59 @@ const Settings = ({ onNavigate }) => {
 
                         {/* Sync Actions */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-sm)' }}>
-                            <button
-                                type="button"
-                                onClick={handleSyncNow}
-                                disabled={!isOnline || syncStatus === SYNC_STATUS.SYNCING}
-                                style={{
-                                    padding: 'var(--spacing-md)',
-                                    background: isOnline ? 'var(--accent-primary)' : 'var(--bg-secondary)',
-                                    color: isOnline ? 'var(--text-on-success)' : 'var(--text-secondary)',
-                                    border: 'none',
-                                    borderRadius: 'var(--radius-sm)',
-                                    cursor: isOnline && syncStatus !== SYNC_STATUS.SYNCING ? 'pointer' : 'not-allowed',
-                                    fontSize: '0.875rem',
-                                    fontWeight: 500,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '0.5rem',
-                                    opacity: isOnline ? 1 : 0.5
-                                }}
-                            >
-                                {syncStatus === SYNC_STATUS.SYNCING ? (
-                                    <><RefreshCw size={16} className="spin" /> Syncing...</>
-                                ) : (
-                                    <><Cloud size={16} /> Sync Now</>
-                                )}
-                            </button>
+                            <PermissionGate action="settings.save">
+                                <button
+                                    type="button"
+                                    onClick={handleSyncNow}
+                                    disabled={!isOnline || syncStatus === SYNC_STATUS.SYNCING}
+                                    style={{
+                                        padding: 'var(--spacing-md)',
+                                        background: isOnline ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                                        color: isOnline ? 'var(--text-on-success)' : 'var(--text-secondary)',
+                                        border: 'none',
+                                        borderRadius: 'var(--radius-sm)',
+                                        cursor: isOnline && syncStatus !== SYNC_STATUS.SYNCING ? 'pointer' : 'not-allowed',
+                                        fontSize: '0.875rem',
+                                        fontWeight: 500,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.5rem',
+                                        opacity: isOnline ? 1 : 0.5
+                                    }}
+                                >
+                                    {syncStatus === SYNC_STATUS.SYNCING ? (
+                                        <><RefreshCw size={16} className="spin" /> Syncing...</>
+                                    ) : (
+                                        <><Cloud size={16} /> Sync Now</>
+                                    )}
+                                </button>
+                            </PermissionGate>
 
-                            <button
-                                type="button"
-                                onClick={handleRestoreFromCloud}
-                                disabled={!isOnline || syncStatus === SYNC_STATUS.SYNCING}
-                                style={{
-                                    padding: 'var(--spacing-md)',
-                                    background: 'var(--bg-secondary)',
-                                    color: 'var(--text-primary)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    cursor: isOnline && syncStatus !== SYNC_STATUS.SYNCING ? 'pointer' : 'not-allowed',
-                                    fontSize: '0.875rem',
-                                    fontWeight: 500,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '0.5rem',
-                                    opacity: isOnline ? 1 : 0.5
-                                }}
-                            >
-                                <RefreshCw size={16} /> Restore
-                            </button>
+                            <PermissionGate action="settings.save">
+                                <button
+                                    type="button"
+                                    onClick={handleRestoreFromCloud}
+                                    disabled={!isOnline || syncStatus === SYNC_STATUS.SYNCING}
+                                    style={{
+                                        padding: 'var(--spacing-md)',
+                                        background: 'var(--bg-secondary)',
+                                        color: 'var(--text-primary)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 'var(--radius-sm)',
+                                        cursor: isOnline && syncStatus !== SYNC_STATUS.SYNCING ? 'pointer' : 'not-allowed',
+                                        fontSize: '0.875rem',
+                                        fontWeight: 500,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.5rem',
+                                        opacity: isOnline ? 1 : 0.5
+                                    }}
+                                >
+                                    <RefreshCw size={16} /> Restore
+                                </button>
+                            </PermissionGate>
                         </div>
 
                         <p style={{ 
@@ -592,29 +879,74 @@ const Settings = ({ onNavigate }) => {
                     {/* Business Profile */}
                     <div>
                         <AppSectionHeader title="Business Profile" />
-                        <AppInput
-                            label="Business Name"
-                            name="businessName"
-                            value={formData.businessName}
-                            onChange={handleChange}
-                            placeholder="e.g. My Awesome Store"
-                            icon={Building}
-                        />
+                        {isGuestMode ? (
+                            <ActionGuard action="settings.save" reason={guestPromptText}>
+                                <AppInput
+                                    label="Business Name"
+                                    name="businessName"
+                                    value={formData.businessName}
+                                    onChange={handleChange}
+                                    placeholder="e.g. My Awesome Store"
+                                    icon={Building}
+                                    error={businessNameError}
+                                    title={guestPromptText}
+                                    style={{ opacity: 0.85 }}
+                                />
+                            </ActionGuard>
+                        ) : (
+                            <AppInput
+                                label="Business Name"
+                                name="businessName"
+                                value={formData.businessName}
+                                onChange={handleChange}
+                                placeholder="e.g. My Awesome Store"
+                                icon={Building}
+                                error={businessNameError}
+                                disabled={!isAdminMode}
+                                title={!isAdminMode ? adminOnlyText : ''}
+                            />
+                        )}
+                        {!isAdminMode && (
+                            <p className="text-caption" style={{ color: 'var(--text-secondary)', marginTop: '-0.5rem' }}>
+                                {isGuestMode ? guestPromptText : adminOnlyText}
+                            </p>
+                        )}
                     </div>
 
                     {/* Inventory Settings */}
                     <div>
                         <AppSectionHeader title="Notifications" />
-                        <AppInput
-                            label="Low Stock Threshold"
-                            name="lowStockThreshold"
-                            type="number"
-                            value={formData.lowStockThreshold}
-                            onChange={handleChange}
-                            min="1"
-                            icon={Bell}
-                        />
-                        <p className="text-caption" style={{ color: 'var(--text-secondary)', marginTop: '-0.5rem' }}>Alert when stock quantity falls below this number.</p>
+                        {isGuestMode ? (
+                            <ActionGuard action="settings.save" reason={guestPromptText}>
+                                <AppInput
+                                    label="Low Stock Threshold"
+                                    name="lowStockThreshold"
+                                    type="number"
+                                    value={formData.lowStockThreshold}
+                                    onChange={handleChange}
+                                    min="1"
+                                    icon={Bell}
+                                    title={guestPromptText}
+                                    style={{ opacity: 0.85 }}
+                                />
+                            </ActionGuard>
+                        ) : (
+                            <AppInput
+                                label="Low Stock Threshold"
+                                name="lowStockThreshold"
+                                type="number"
+                                value={formData.lowStockThreshold}
+                                onChange={handleChange}
+                                min="1"
+                                icon={Bell}
+                                disabled={!isAdminMode}
+                                title={!isAdminMode ? adminOnlyText : ''}
+                            />
+                        )}
+                        <p className="text-caption" style={{ color: 'var(--text-secondary)', marginTop: '-0.5rem' }}>
+                            Alert when stock quantity falls below this number.
+                            {!isAdminMode ? ` ${isGuestMode ? guestPromptText : adminOnlyText}` : ''}
+                        </p>
                     </div>
 
                     {/* App Preferences */}
@@ -649,7 +981,7 @@ const Settings = ({ onNavigate }) => {
                                     <select
                                         name="theme"
                                         className="input-field"
-                                        value={formData.theme}
+                                        value={currentTheme}
                                         onChange={handleChange}
                                         style={{ cursor: 'pointer', paddingLeft: '2.5rem' }}
                                     >
@@ -673,7 +1005,14 @@ const Settings = ({ onNavigate }) => {
                         <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
                             <button
                                 type="button"
-                                onClick={() => changeRole(ROLES.ADMIN)}
+                                onClick={() => {
+                                    changeRole(ROLES.ADMIN);
+                                    try {
+                                        localStorage.setItem('salesUp_session_v1', JSON.stringify({ isAuthenticated: true, role: ROLES.ADMIN, businessId: activeStore?.id || '', cashierId: '' }));
+                                    } catch {
+                                        // ignore
+                                    }
+                                }}
                                 style={{
                                     flex: 1,
                                     padding: 'var(--spacing-md)',
@@ -698,7 +1037,14 @@ const Settings = ({ onNavigate }) => {
                             
                             <button
                                 type="button"
-                                onClick={() => changeRole(ROLES.CASHIER)}
+                                onClick={() => {
+                                    changeRole(ROLES.CASHIER);
+                                    try {
+                                        localStorage.setItem('salesUp_session_v1', JSON.stringify({ isAuthenticated: true, role: ROLES.CASHIER, businessId: activeStore?.id || '', cashierId: '' }));
+                                    } catch {
+                                        // ignore
+                                    }
+                                }}
                                 style={{
                                     flex: 1,
                                     padding: 'var(--spacing-md)',
@@ -736,8 +1082,8 @@ const Settings = ({ onNavigate }) => {
                     </PermissionGate>
 
                     <PermissionGate action="settings.save">
-                        <AppButton type="submit" icon={Save} fullWidth>
-                            Save Settings
+                        <AppButton type="submit" icon={Save} fullWidth disabled={isSavingSettings}>
+                            {isSavingSettings ? 'Saving...' : 'Save Settings'}
                         </AppButton>
                     </PermissionGate>
 

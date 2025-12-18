@@ -22,6 +22,26 @@ export const validateProduct = (product) => {
         errors.category = "Category is required";
     }
 
+    if (product.expirationDate != null && String(product.expirationDate).trim() !== '') {
+        const raw = String(product.expirationDate).trim();
+        const parts = raw.split('-');
+        if (parts.length !== 3) {
+            errors.expirationDate = 'Invalid expiration date';
+        } else {
+            const y = Number(parts[0]);
+            const m = Number(parts[1]);
+            const d = Number(parts[2]);
+            const dt = new Date(y, (m || 0) - 1, d);
+            const isValid = Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)
+                && dt.getFullYear() === y
+                && dt.getMonth() === (m - 1)
+                && dt.getDate() === d;
+            if (!isValid) {
+                errors.expirationDate = 'Invalid expiration date';
+            }
+        }
+    }
+
     return {
         isValid: Object.keys(errors).length === 0,
         errors
@@ -49,6 +69,7 @@ export const addProduct = (currentList, productData) => {
         quantity: parseInt(productData.quantity, 10) || 0,
         cost_price: parseFloat(productData.cost_price) || 0,
         selling_price: parseFloat(productData.selling_price) || 0,
+        expirationDate: productData.expirationDate && String(productData.expirationDate).trim() !== '' ? String(productData.expirationDate).trim() : null,
     };
     return [...currentList, newProduct];
 };

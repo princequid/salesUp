@@ -4,7 +4,9 @@ import { CurrencyProvider } from './logic/CurrencyContext';
 import { RoleProvider } from './logic/RoleContext';
 import { ThemeProvider } from './logic/ThemeContext';
 import { StoreProvider } from './logic/StoreContext';
+import { AuthProvider } from './logic/AuthContext';
 import { useRole } from './logic/roleUtils';
+import { useStore } from './logic/storeContextImpl';
 import Dashboard from './screens/dashboardScreen/Dashboard';
 import AddProduct from './screens/addProductScreen/AddProduct';
 import ProductList from './screens/productListScreen/ProductList';
@@ -40,7 +42,9 @@ function App() {
         <RoleProvider>
           <CurrencyProvider>
             <InventoryProvider>
-              <AppContent />
+              <AuthProvider>
+                <AppContent />
+              </AuthProvider>
             </InventoryProvider>
           </CurrencyProvider>
         </RoleProvider>
@@ -50,7 +54,9 @@ function App() {
 }
 
 function AppContent() {
-  const { hasAccess, isCashier } = useRole();
+  const { hasAccess, isCashier, userRole, ROLES } = useRole();
+  const { activeStore } = useStore();
+  const storeName = String(activeStore?.name || '').trim();
   const [currentScreen, setCurrentScreen] = useState(() =>
     isCashier() ? 'recordSale' : 'dashboard'
   );
@@ -61,6 +67,15 @@ function AppContent() {
       setCurrentScreen(isCashier() ? 'recordSale' : 'dashboard');
     }
   }, [currentScreen, hasAccess, isCashier]);
+
+  useEffect(() => {
+    if (userRole === ROLES.CASHIER) {
+      setCurrentScreen('recordSale');
+    }
+    if (userRole === ROLES.ADMIN) {
+      setCurrentScreen('dashboard');
+    }
+  }, [userRole, ROLES.CASHIER, ROLES.ADMIN]);
 
   const handleNavigate = (screen) => {
     if (hasAccess(screen)) {
@@ -126,6 +141,16 @@ function AppContent() {
             <span className="topbar-sales">Sales</span>
             <span className="topbar-up">UP</span>
           </span>
+          {!!storeName && (
+            <span className="topbar-store-name">{storeName}</span>
+          )}
+          {activeStore?.logoBase64 && (
+            <img
+              src={activeStore.logoBase64}
+              alt={activeStore.name || 'Business logo'}
+              className="topbar-business-logo-img"
+            />
+          )}
         </div>
         <div className="topbar-spacer" />
       </header>

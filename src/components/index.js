@@ -11,3 +11,4 @@ export { default as AppEmptyState } from './AppEmptyState';
 export { default as ChartWrapper } from './ChartWrapper';
 export { default as BottomNav } from './BottomNav';
 export { default as BarcodeScanner } from './BarcodeScanner';
+export { default as ReportTemplate } from './ReportTemplate';

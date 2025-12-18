@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 // currency hook removed; formatting handled by useMoneyFormatter
 import { useInventory } from '../../logic/InventoryContext';
 import { ArrowLeft, Receipt, Calendar, DollarSign, CreditCard, Search, FileText, TrendingUp } from 'lucide-react';
-import { AppButton, AppCard, AppSectionHeader, AppIconButton, AppEmptyState } from '../../components';
+import { AppButton, AppCard, AppIconButton, AppEmptyState, AppModal, AppInput } from '../../components';
 import PermissionGate from '../../components/PermissionGate';
 import PageLayout from '../../components/PageLayout';
 import { useMoneyFormatter, parseAmountSafe } from '../../logic/currencyFormat';
@@ -14,6 +14,12 @@ const ReceiptHistory = ({ onNavigate }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedReceipt, setSelectedReceipt] = useState(null);
     const [showReceiptModal, setShowReceiptModal] = useState(false);
+
+    const [voidTarget, setVoidTarget] = useState(null);
+    const [isVoidConfirmOpen, setIsVoidConfirmOpen] = useState(false);
+    const [isVoidReasonOpen, setIsVoidReasonOpen] = useState(false);
+    const [voidReason, setVoidReason] = useState('');
+    const [voidReasonError, setVoidReasonError] = useState('');
 
     // Debug logging
     console.log('[ReceiptHistory] Component rendered');
@@ -49,6 +55,41 @@ const ReceiptHistory = ({ onNavigate }) => {
     const handleCloseModal = () => {
         setShowReceiptModal(false);
         setSelectedReceipt(null);
+    };
+
+    const closeVoidFlow = () => {
+        setIsVoidConfirmOpen(false);
+        setIsVoidReasonOpen(false);
+        setVoidTarget(null);
+        setVoidReason('');
+        setVoidReasonError('');
+    };
+
+    const handleStartVoid = (transaction) => {
+        setVoidTarget(transaction);
+        setIsVoidConfirmOpen(true);
+        setIsVoidReasonOpen(false);
+        setVoidReason('');
+        setVoidReasonError('');
+    };
+
+    const handleContinueVoid = () => {
+        setIsVoidConfirmOpen(false);
+        setIsVoidReasonOpen(true);
+        setVoidReasonError('');
+    };
+
+    const handleConfirmVoid = () => {
+        const trimmed = String(voidReason || '').trim();
+        if (!trimmed) {
+            setVoidReasonError('Void reason is required');
+            return;
+        }
+
+        if (!voidTarget) return;
+
+        voidTransaction(voidTarget.id, trimmed);
+        closeVoidFlow();
     };
 
     const formatDate = (dateString) => {
@@ -155,7 +196,8 @@ const ReceiptHistory = ({ onNavigate }) => {
                     {filteredTransactions.map((transaction) => {
                         const receiptId = transaction.receiptId || transaction.id;
                         const itemCount = transaction.items.reduce((sum, item) => sum + item.quantity, 0);
-                        const isVoided = !!transaction.voided;
+                        const isVoided = !!(transaction.voided || transaction.isVoided);
+                        const displayedVoidReason = String(transaction.voidReason || '').trim();
                         
                         return (
                             <AppCard 
@@ -279,31 +321,49 @@ const ReceiptHistory = ({ onNavigate }) => {
                                             </span>
                                         )}
                                         <PermissionGate action="sales.void">
-                                            {!isVoided && (
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        const reason = window.prompt('Reason for void (optional):', '');
-                                                        voidTransaction(transaction.id, reason || '');
-                                                    }}
-                                                    style={{
-                                                        marginTop: '0.5rem',
-                                                        background: 'transparent',
-                                                        color: 'var(--accent-danger)',
-                                                        border: '1px solid var(--accent-danger)',
-                                                        borderRadius: '6px',
-                                                        padding: '0.25rem 0.5rem',
-                                                        fontSize: '0.75rem',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    Void
-                                                </button>
-                                            )}
+                                            <button
+                                                type="button"
+                                                disabled={isVoided}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (isVoided) return;
+                                                    handleStartVoid(transaction);
+                                                }}
+                                                style={{
+                                                    marginTop: '0.5rem',
+                                                    background: 'transparent',
+                                                    color: 'var(--accent-danger)',
+                                                    border: '1px solid var(--accent-danger)',
+                                                    borderRadius: '6px',
+                                                    padding: '0.25rem 0.5rem',
+                                                    fontSize: '0.75rem',
+                                                    cursor: isVoided ? 'not-allowed' : 'pointer',
+                                                    opacity: isVoided ? 0.6 : 1
+                                                }}
+                                            >
+                                                {isVoided ? 'Voided' : 'Void'}
+                                            </button>
                                         </PermissionGate>
                                     </div>
                                 </div>
+
+                                {isVoided && displayedVoidReason && (
+                                    <div style={{
+                                        marginTop: 'var(--spacing-sm)',
+                                        background: 'rgba(239, 68, 68, 0.08)',
+                                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                                        padding: '0.6rem 0.75rem',
+                                        borderRadius: '8px',
+                                        color: 'var(--text-primary)'
+                                    }}>
+                                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-danger)', marginBottom: '0.15rem' }}>
+                                            Void reason
+                                        </div>
+                                        <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                                            {displayedVoidReason}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Items Preview */}
                                 <div style={{ 
@@ -344,6 +404,55 @@ const ReceiptHistory = ({ onNavigate }) => {
                     onClose={handleCloseModal}
                 />
             )}
+
+            <AppModal
+                isOpen={isVoidConfirmOpen}
+                onClose={closeVoidFlow}
+                title="Confirm Void"
+                maxWidth="460px"
+            >
+                <div style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                    Are you sure you want to void this receipt?
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                    <AppButton variant="secondary" onClick={closeVoidFlow}>
+                        Cancel Void
+                    </AppButton>
+                    <AppButton onClick={handleContinueVoid}>
+                        Continue Void
+                    </AppButton>
+                </div>
+            </AppModal>
+
+            <AppModal
+                isOpen={isVoidReasonOpen}
+                onClose={closeVoidFlow}
+                title="Void Reason"
+                maxWidth="520px"
+            >
+                <div style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                    Please enter a reason for voiding this receipt. This is required.
+                </div>
+                <AppInput
+                    label="Void reason"
+                    name="voidReason"
+                    value={voidReason}
+                    onChange={(e) => {
+                        setVoidReason(e.target.value);
+                        if (voidReasonError) setVoidReasonError('');
+                    }}
+                    placeholder="e.g. Customer returned items, wrong payment method, duplicate sale"
+                    error={voidReasonError}
+                />
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                    <AppButton variant="secondary" onClick={closeVoidFlow}>
+                        Cancel
+                    </AppButton>
+                    <AppButton disabled={!String(voidReason || '').trim()} onClick={handleConfirmVoid}>
+                        Confirm Void
+                    </AppButton>
+                </div>
+            </AppModal>
         </PageLayout>
     );
 };

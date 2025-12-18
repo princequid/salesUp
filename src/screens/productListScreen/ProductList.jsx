@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { useInventory } from '../../logic/InventoryContext';
 import { searchProducts } from '../../logic/productLogic';
-import { ArrowLeft, Search, Trash2, Edit2, Plus, Package } from 'lucide-react';
-import { AppButton, AppCard, AppInput, AppBadge, AppEmptyState, AppIconButton } from '../../components';
+import { ArrowLeft, Search, Trash2, Edit2, Plus, Package, Calendar } from 'lucide-react';
+import { AppButton, AppCard, AppInput, AppBadge, AppEmptyState, AppIconButton, AppModal } from '../../components';
 import PermissionGate from '../../components/PermissionGate';
 import PageLayout from '../../components/PageLayout';
 
 const ProductList = ({ onNavigate }) => {
-    const { products, deleteProduct, settings } = useInventory();
+    const { products, deleteProduct, updateProduct, settings } = useInventory();
     const [searchQuery, setSearchQuery] = useState('');
+    const [isEditOpen, setIsEditOpen] = useState(false);
+    const [editingId, setEditingId] = useState(null);
+    const [editingExpirationDate, setEditingExpirationDate] = useState('');
 
     const filteredProducts = searchProducts(products, searchQuery);
 
@@ -19,7 +22,10 @@ const ProductList = ({ onNavigate }) => {
     };
 
     const handleEdit = (id) => {
-        alert("Edit feature coming in next update!");
+        const p = products.find((x) => x.id === id);
+        setEditingId(id);
+        setEditingExpirationDate(p?.expirationDate || '');
+        setIsEditOpen(true);
     };
 
     return (
@@ -125,6 +131,53 @@ const ProductList = ({ onNavigate }) => {
                     )}
                 />
             )}
+
+            <AppModal
+                isOpen={isEditOpen}
+                onClose={() => setIsEditOpen(false)}
+                title="Edit Expiration Date"
+                maxWidth="560px"
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                        {products.find((p) => p.id === editingId)?.name || ''}
+                    </div>
+
+                    <AppInput
+                        label="Expiration Date (Optional)"
+                        name="expirationDate"
+                        type="date"
+                        value={editingExpirationDate}
+                        onChange={(e) => setEditingExpirationDate(e.target.value)}
+                        icon={Calendar}
+                    />
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-sm)' }}>
+                        <AppButton
+                            variant="ghost"
+                            onClick={() => {
+                                setEditingExpirationDate('');
+                            }}
+                        >
+                            Clear
+                        </AppButton>
+                        <PermissionGate action="inventory.update">
+                            <AppButton
+                                variant="primary"
+                                onClick={() => {
+                                    if (!editingId) return;
+                                    updateProduct(editingId, {
+                                        expirationDate: editingExpirationDate && String(editingExpirationDate).trim() !== '' ? String(editingExpirationDate).trim() : null
+                                    });
+                                    setIsEditOpen(false);
+                                }}
+                            >
+                                Save
+                            </AppButton>
+                        </PermissionGate>
+                    </div>
+                </div>
+            </AppModal>
         </PageLayout>
     );
 };

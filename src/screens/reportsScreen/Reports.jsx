@@ -6,18 +6,28 @@ import React, { useState, useMemo } from 'react';
 import { useInventory } from '../../logic/InventoryContext';
 import PermissionGate from '../../components/PermissionGate';
 import { useMoneyFormatter } from '../../logic/currencyFormat';
-import { filterSalesByDate, exportToPDF, exportToCSV } from '../../logic/reportLogic';
+import { filterSalesByDate, exportToCSV } from '../../logic/reportLogic';
+import { useRole } from '../../logic/roleUtils';
+import { useStore } from '../../logic/storeContextImpl';
 import { ArrowLeft, Download, FileText, ShoppingCart } from 'lucide-react';
-import { AppButton, AppCard, AppIconButton, AppDivider, ChartWrapper, AppEmptyState } from '../../components';
+import { AppButton, AppCard, AppIconButton, AppDivider, ChartWrapper, AppEmptyState, AppModal, ReportTemplate } from '../../components';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import PageLayout from '../../components/PageLayout';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const Reports = ({ onNavigate }) => {
-    const { sales } = useInventory();
+    const { sales, products, settings } = useInventory();
     const money = useMoneyFormatter();
+    const { userRole, ROLES } = useRole();
+    const { activeStore } = useStore();
     const [filterType, setFilterType] = useState('daily');
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    const isAdminMode = userRole === ROLES.ADMIN;
 
     // Derived State: Filtered Sales
     const filteredSales = useMemo(() => {
@@ -26,17 +36,139 @@ const Reports = ({ onNavigate }) => {
 
     // Derived State: Stats
     const stats = useMemo(() => {
-        // Simple manual calculation or import calculateTotals if available.
-        // Using manual here to avoid import errors if calculateTotals isn't imported yet, 
-        // but wait, I can modify imports too. Let's use robust manual calc to be safe and fast.
         const totalSales = filteredSales.reduce((sum, sale) => sum + (sale.total_price || 0), 0);
-        const totalProfit = filteredSales.reduce((sum, sale) => sum + (sale.profit || 0), 0);
+        const totalProfit = isAdminMode ? filteredSales.reduce((sum, sale) => sum + (sale.profit || 0), 0) : 0;
         return {
             totalSales,
             totalProfit,
             count: filteredSales.length
         };
-    }, [filteredSales]);
+    }, [filteredSales, isAdminMode]);
+
+    const reportRange = useMemo(() => {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayEnd = new Date(todayStart);
+        todayEnd.setHours(23, 59, 59, 999);
+
+        if (filterType === 'custom') {
+            const start = startDate ? new Date(startDate) : todayStart;
+            start.setHours(0, 0, 0, 0);
+            const end = endDate ? new Date(endDate) : todayEnd;
+            end.setHours(23, 59, 59, 999);
+            return { start, end };
+        }
+
+        if (filterType === 'weekly') {
+            const start = new Date(todayStart);
+            start.setDate(start.getDate() - 7);
+            return { start, end: todayEnd };
+        }
+
+        if (filterType === 'monthly') {
+            const start = new Date(todayStart);
+            start.setMonth(start.getMonth() - 1);
+            return { start, end: todayEnd };
+        }
+
+        return { start: todayStart, end: todayEnd };
+    }, [filterType, startDate, endDate]);
+
+    const itemSummary = useMemo(() => {
+        const map = new Map();
+
+        const resolveProductName = (id) => {
+            const p = (products || []).find((x) => x.id === id);
+            return p?.name || 'Unknown Product';
+        };
+
+        (filteredSales || []).forEach((tx) => {
+            if (tx?.items && Array.isArray(tx.items)) {
+                tx.items.forEach((item) => {
+                    const id = item.productId || item.product_id || item.id || '';
+                    const name = item.name || resolveProductName(id);
+                    const qty = Number(item.quantity) || 0;
+                    const total = Number(item.total ?? item.lineTotal ?? 0) || 0;
+
+                    const key = id || name;
+                    const current = map.get(key) || { id, name, quantity: 0, total: 0 };
+                    map.set(key, {
+                        ...current,
+                        name,
+                        quantity: current.quantity + qty,
+                        total: current.total + total
+                    });
+                });
+                return;
+            }
+
+            const id = tx.productId || tx.product_id || tx.id || '';
+            const name = resolveProductName(id);
+            const qty = Number(tx.quantity) || 0;
+            const total = Number(tx.total_price) || 0;
+            const key = id || name;
+            const current = map.get(key) || { id, name, quantity: 0, total: 0 };
+            map.set(key, {
+                ...current,
+                name,
+                quantity: current.quantity + qty,
+                total: current.total + total
+            });
+        });
+
+        return Array.from(map.values())
+            .sort((a, b) => b.total - a.total)
+            .map((row) => ({
+                ...row,
+                totalFormatted: money(row.total)
+            }));
+    }, [filteredSales, products, money]);
+
+    const reportPayload = useMemo(() => {
+        const storeName = activeStore?.name || settings?.businessName || 'Store';
+        const reportType = filterType;
+        return {
+            storeName,
+            reportType,
+            range: reportRange,
+            totalSalesFormatted: money(stats.totalSales),
+            transactionCount: stats.count,
+            itemSummary
+        };
+    }, [activeStore, settings, filterType, reportRange, stats.totalSales, stats.count, itemSummary, money]);
+
+    const generateReportPdfBlobUrl = async () => {
+        const { storeName, reportType, range, totalSalesFormatted, transactionCount, itemSummary: rows } = reportPayload;
+
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        doc.setFont('helvetica', 'normal');
+
+        const title = `${storeName} - Sales Report (${String(reportType || '').toUpperCase()})`;
+        doc.setFontSize(14);
+        doc.text(title, 14, 18);
+
+        const rangeText = `Date range: ${range?.start ? new Date(range.start).toLocaleDateString() : ''} - ${range?.end ? new Date(range.end).toLocaleDateString() : ''}`;
+        doc.setFontSize(10);
+        doc.text(rangeText, 14, 26);
+        doc.text(`Total sales: ${totalSalesFormatted}`, 14, 32);
+        doc.text(`Transactions: ${transactionCount}`, 14, 38);
+
+        autoTable(doc, {
+            head: [['Product', 'Qty', 'Total']],
+            body: (rows || []).map((r) => [r.name, String(r.quantity), r.totalFormatted]),
+            startY: 46,
+            styles: { fontSize: 9, cellPadding: 3 },
+            headStyles: { fillColor: [243, 244, 246], textColor: [17, 24, 39] },
+            columnStyles: {
+                1: { halign: 'right' },
+                2: { halign: 'right' }
+            },
+            margin: { left: 14, right: 14 }
+        });
+
+        const blob = doc.output('blob');
+        return URL.createObjectURL(blob);
+    };
 
     // Derived State: Chart Data
     const chartData = useMemo(() => {
@@ -73,11 +205,52 @@ const Reports = ({ onNavigate }) => {
     const handleFilterChange = (type) => setFilterType(type);
 
     const handleExportPDF = () => {
-        exportToPDF(stats, filteredSales, filterType);
+        setIsPreviewOpen(true);
     };
 
     const handleExportCSV = () => {
-        exportToCSV(filteredSales, filterType);
+        exportToCSV(filteredSales, filterType, { includeProfit: isAdminMode });
+    };
+
+    const handleDownloadPdf = async () => {
+        if (isGenerating) return;
+        setIsGenerating(true);
+        try {
+            const url = await generateReportPdfBlobUrl();
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `sales-report-${String(reportPayload.reportType || 'period')}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 10_000);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handlePrintPdf = async () => {
+        if (isGenerating) return;
+        setIsGenerating(true);
+        try {
+            const url = await generateReportPdfBlobUrl();
+            const w = window.open(url, '_blank', 'noopener,noreferrer');
+            if (!w) {
+                alert('Popup blocked. Please allow popups to print the report.');
+                return;
+            }
+            w.addEventListener('load', () => {
+                try {
+                    w.focus();
+                    w.print();
+                } catch {
+                    // ignore
+                }
+            });
+            setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
     const getChartTitle = () => {
@@ -107,20 +280,45 @@ const Reports = ({ onNavigate }) => {
             {/* ... rest of JSX ... */}
 
             {/* Summary Metrics */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-lg)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isAdminMode ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-lg)' }}>
                 <AppCard style={{ padding: 'var(--spacing-md)', textAlign: 'center' }}>
                     <div className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Total Sales</div>
                     <div className="text-h2" style={{ fontWeight: 'bold' }}>{money(stats.totalSales)}</div>
                 </AppCard>
-                <AppCard style={{ padding: 'var(--spacing-md)', textAlign: 'center' }}>
-                    <div className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Total Profit</div>
-                    <div className="text-h2" style={{ fontWeight: 'bold', color: 'var(--accent-success)' }}>{money(stats.totalProfit)}</div>
-                </AppCard>
+                {isAdminMode && (
+                    <AppCard style={{ padding: 'var(--spacing-md)', textAlign: 'center' }}>
+                        <div className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Total Profit</div>
+                        <div className="text-h2" style={{ fontWeight: 'bold', color: 'var(--accent-success)' }}>{money(stats.totalProfit)}</div>
+                    </AppCard>
+                )}
                 <AppCard style={{ padding: 'var(--spacing-md)', textAlign: 'center' }}>
                     <div className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Transactions</div>
                     <div className="text-h2" style={{ fontWeight: 'bold' }}>{stats.count}</div>
                 </AppCard>
             </div>
+
+            <AppCard style={{ padding: 'var(--spacing-lg)', marginBottom: 'var(--spacing-lg)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--spacing-md)' }}>
+                    <div>
+                        <h3 className="text-h3" style={{ marginBottom: '0.25rem' }}>Report / Print</h3>
+                        <div className="text-caption" style={{ color: 'var(--text-secondary)' }}>
+                            Date range: {reportRange.start.toLocaleDateString()} - {reportRange.end.toLocaleDateString()}
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                        <PermissionGate action="reports.export">
+                            <AppButton variant="secondary" icon={FileText} onClick={() => setIsPreviewOpen(true)} disabled={isGenerating}>
+                                Preview
+                            </AppButton>
+                        </PermissionGate>
+                        <PermissionGate action="reports.export">
+                            <AppButton variant="outline" icon={Download} onClick={handleDownloadPdf} disabled={isGenerating}>
+                                Download PDF
+                            </AppButton>
+                        </PermissionGate>
+                    </div>
+                </div>
+            </AppCard>
 
             {/* Chart */}
             <AppCard style={{
@@ -184,6 +382,48 @@ const Reports = ({ onNavigate }) => {
 
             {/* Export Actions */}
 
+            <AppModal
+                isOpen={isPreviewOpen}
+                onClose={() => setIsPreviewOpen(false)}
+                title="Report Preview"
+                maxWidth="960px"
+                maxHeight="92vh"
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        <PermissionGate action="reports.export">
+                            <AppButton variant="secondary" onClick={handlePrintPdf} disabled={isGenerating}>
+                                Print
+                            </AppButton>
+                        </PermissionGate>
+                        <PermissionGate action="reports.export">
+                            <AppButton variant="outline" onClick={handleDownloadPdf} disabled={isGenerating}>
+                                Download PDF
+                            </AppButton>
+                        </PermissionGate>
+                    </div>
+
+                    <div style={{
+                        overflowX: 'auto',
+                        padding: '0.5rem',
+                        background: 'var(--bg-secondary)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-color)'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <ReportTemplate
+                                storeName={reportPayload.storeName}
+                                reportType={reportPayload.reportType}
+                                range={reportPayload.range}
+                                totalSales={reportPayload.totalSalesFormatted}
+                                transactionCount={reportPayload.transactionCount}
+                                itemSummary={reportPayload.itemSummary}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </AppModal>
+
         </PageLayout>
     );
 };
@@ -216,7 +456,7 @@ const ReportHeader = ({ onNavigate, filterType, setFilterType, startDate, setSta
                         size="small"
                         style={{ transform: 'none', transition: 'none' }}
                     >
-                        PDF
+                        Preview
                     </AppButton>
                 </PermissionGate>
                 <PermissionGate action="reports.export">

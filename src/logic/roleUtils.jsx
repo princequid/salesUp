@@ -13,19 +13,20 @@ export const useRole = () => {
 export const ROLE_STORAGE_KEY = 'salesUp_user_role';
 
 export const ROLES = {
+    GUEST: 'guest',
     ADMIN: 'admin',
     CASHIER: 'cashier'
 };
 
 export const SCREEN_PERMISSIONS = {
-    dashboard: [ROLES.ADMIN, ROLES.CASHIER],
-    recordSale: [ROLES.ADMIN, ROLES.CASHIER],
-    receiptHistory: [ROLES.ADMIN, ROLES.CASHIER],
-    productList: [ROLES.ADMIN],
-    addProduct: [ROLES.ADMIN],
-    lowStock: [ROLES.ADMIN],
-    reports: [ROLES.ADMIN],
-    settings: [ROLES.ADMIN]
+    dashboard: [ROLES.GUEST, ROLES.ADMIN, ROLES.CASHIER],
+    recordSale: [ROLES.GUEST, ROLES.ADMIN, ROLES.CASHIER],
+    receiptHistory: [ROLES.GUEST, ROLES.ADMIN, ROLES.CASHIER],
+    productList: [ROLES.GUEST, ROLES.ADMIN, ROLES.CASHIER],
+    addProduct: [ROLES.GUEST, ROLES.ADMIN, ROLES.CASHIER],
+    lowStock: [ROLES.GUEST, ROLES.ADMIN, ROLES.CASHIER],
+    reports: [ROLES.GUEST, ROLES.ADMIN, ROLES.CASHIER],
+    settings: [ROLES.GUEST, ROLES.ADMIN, ROLES.CASHIER]
 };
 
 // Centralized action-level permissions
@@ -35,7 +36,7 @@ export const ACTION_PERMISSIONS = {
     'pos.checkout': [ROLES.ADMIN, ROLES.CASHIER],
     'pos.discount': [ROLES.ADMIN],
     'pos.scan': [ROLES.ADMIN, ROLES.CASHIER],
-    'sales.void': [ROLES.ADMIN],
+    'sales.void': [ROLES.ADMIN, ROLES.CASHIER],
 
     // Inventory CRUD
     'inventory.create': [ROLES.ADMIN],
@@ -44,7 +45,7 @@ export const ACTION_PERMISSIONS = {
     'inventory.delete': [ROLES.ADMIN],
 
     // Reports
-    'reports.export': [ROLES.ADMIN],
+    'reports.export': [ROLES.ADMIN, ROLES.CASHIER],
 
     // Settings
     'settings.save': [ROLES.ADMIN],

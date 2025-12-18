@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { useInventory } from '../../logic/InventoryContext';
 import { validateProduct } from '../../logic/productLogic';
-import { ArrowLeft, Save, Upload, Tag, Box, DollarSign, Image as ImageIcon, Hash, FileUp, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Save, Upload, Tag, Box, DollarSign, Image as ImageIcon, Hash, FileUp, CheckCircle, XCircle, Calendar } from 'lucide-react';
 import { AppButton, AppCard, AppInput, AppSectionHeader, AppIconButton } from '../../components';
 import PageLayout from '../../components/PageLayout';
 import Papa from 'papaparse';
 import PermissionGate from '../../components/PermissionGate';
+import { useAuth } from '../../logic/AuthContext';
 
 const AddProduct = ({ onNavigate }) => {
     const { addProduct, products } = useInventory();
+    const { requireAuth } = useAuth();
 
     const [formData, setFormData] = useState({
         name: '',
@@ -17,7 +19,8 @@ const AddProduct = ({ onNavigate }) => {
         selling_price: '',
         quantity: '',
         category: '',
-        image: null
+        image: null,
+        expirationDate: ''
     });
 
     const [errors, setErrors] = useState({});
@@ -49,6 +52,8 @@ const AddProduct = ({ onNavigate }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
+
+        if (!requireAuth()) return;
         
         // Handle bulk import save
         if (formMode === 'bulk') {
@@ -96,7 +101,8 @@ const AddProduct = ({ onNavigate }) => {
                 selling_price: '',
                 quantity: '',
                 category: '',
-                image: null
+                image: null,
+                expirationDate: ''
             });
             setErrors({});
             onNavigate('dashboard');
@@ -123,7 +129,8 @@ const AddProduct = ({ onNavigate }) => {
             selling_price: fieldMap['sellingprice'] || fieldMap['price'] || fieldMap['selling_price'] || '',
             quantity: fieldMap['quantity'] || fieldMap['stock'] || '',
             category: (fieldMap['category'] || 'Imported').toString().trim(),
-            image: null
+            image: null,
+            expirationDate: (fieldMap['expirationdate'] || fieldMap['expirydate'] || fieldMap['expdate'] || '').toString().trim()
         };
 
         // Convert numeric fields
@@ -570,6 +577,16 @@ const AddProduct = ({ onNavigate }) => {
                             placeholder="0"
                             error={errors.quantity}
                             icon={Box}
+                        />
+
+                        <AppInput
+                            label="Expiration Date (Optional)"
+                            name="expirationDate"
+                            type="date"
+                            value={formData.expirationDate}
+                            onChange={handleChange}
+                            error={errors.expirationDate}
+                            icon={Calendar}
                         />
                     </div>
 

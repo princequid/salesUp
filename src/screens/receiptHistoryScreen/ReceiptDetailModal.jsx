@@ -6,16 +6,22 @@ import PermissionGate from '../../components/PermissionGate';
 import jsPDF from 'jspdf';
 import { useStore } from '../../logic/storeContextImpl';
 import { useMoneyFormatter } from '../../logic/currencyFormat';
+import { useAuth } from '../../logic/AuthContext';
 
 const ReceiptDetailModal = ({ receipt, onClose }) => {
     const money = useMoneyFormatter();
     const { activeStore } = useStore();
+    const { requireAuth } = useAuth();
+
+    const storeName = String(receipt?.storeName || activeStore?.name || '').trim();
     
     const handlePrintReceipt = () => {
+        if (!requireAuth()) return;
         window.print();
     };
 
     const handleDownloadPDF = () => {
+        if (!requireAuth()) return;
         if (!receipt) return;
 
         const doc = new jsPDF({
@@ -44,6 +50,14 @@ const ReceiptDetailModal = ({ receipt, onClose }) => {
                 doc.addImage(activeStore.logoBase64, imgType, x, yPos, imgWidth, imgHeight);
                 yPos += imgHeight + 4;
             } catch { /* ignore logo render errors */ }
+        }
+
+        const pdfStoreName = String(receipt.storeName || activeStore?.name || '').trim();
+        if (pdfStoreName) {
+            doc.setFontSize(12);
+            doc.text(pdfStoreName, pageWidth / 2, yPos, { align: 'center' });
+            yPos += 6;
+            doc.setFontSize(16);
         }
         doc.text('RECEIPT', pageWidth / 2, yPos, { align: 'center' });
         yPos += 8;
@@ -198,6 +212,11 @@ const ReceiptDetailModal = ({ receipt, onClose }) => {
                     {activeStore?.logoBase64 && (
                         <div style={{ marginBottom: '0.5rem' }}>
                             <img src={activeStore.logoBase64} alt={activeStore.name || 'Logo'} style={{ maxHeight: 48, objectFit: 'contain' }} />
+                        </div>
+                    )}
+                    {!!storeName && (
+                        <div style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                            {storeName}
                         </div>
                     )}
                     <h2 style={{ margin: 0, fontSize: '1.5rem' }}>RECEIPT</h2>

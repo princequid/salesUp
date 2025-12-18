@@ -1,6 +1,6 @@
 import React from 'react';
 
-const AppInput = ({ label, name, type = 'text', value, onChange, placeholder, error, min, step, icon: Icon, style = {} }) => {
+const AppInput = ({ label, name, type = 'text', value, onChange, placeholder, error, min, step, icon: Icon, style = {}, disabled = false, readOnly = false, title = '', ...rest }) => {
     return (
         <div style={{ marginBottom: '1rem', ...style }}>
             {label && (
@@ -30,6 +30,10 @@ const AppInput = ({ label, name, type = 'text', value, onChange, placeholder, er
                     placeholder={placeholder}
                     min={min}
                     step={step}
+                    disabled={disabled}
+                    readOnly={readOnly}
+                    title={title}
+                    {...rest}
                     style={{
                         paddingLeft: Icon ? '2.5rem' : '1rem',
                         width: '100%'

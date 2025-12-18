@@ -1,6 +1,6 @@
 import React from 'react';
 
-const AppButton = ({ children, variant = 'primary', onClick, className = '', fullWidth = false, style = {}, type = 'button', disabled = false, icon: Icon }) => {
+const AppButton = ({ children, variant = 'primary', onClick, className = '', fullWidth = false, style = {}, type = 'button', disabled = false, icon: Icon, ...rest }) => {
 
     // Map variant to CSS class
     const variantClass = `btn-${variant}`;
@@ -21,6 +21,7 @@ const AppButton = ({ children, variant = 'primary', onClick, className = '', ful
             style={combinedStyle}
             onClick={onClick}
             disabled={disabled}
+            {...rest}
         >
             {Icon && <Icon size={18} style={{ marginRight: children ? '0.5rem' : 0 }} />}
             {children}

@@ -2,6 +2,7 @@ import React from 'react';
 import { useRole } from '../logic/roleUtils';
 import { useInventory } from '../logic/InventoryContext';
 import { useStore } from '../logic/storeContextImpl';
+import { useAuth } from '../logic/AuthContext';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -12,6 +13,8 @@ import {
   AlertTriangle,
   Settings as SettingsIcon,
   TrendingUp,
+  LogIn,
+  LogOut,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -29,6 +32,7 @@ const Sidebar = ({ currentScreen, onNavigate, isMobileOpen, onClose }) => {
   const { hasAccess, userRole, changeRole, ROLES } = useRole();
   const { settings } = useInventory();
   const { activeStore } = useStore();
+  const { openAuthPrompt, logout, isAuthenticated } = useAuth();
 
   const items = NAV_ITEMS.filter((item) => hasAccess(item.key));
 
@@ -43,6 +47,8 @@ const Sidebar = ({ currentScreen, onNavigate, isMobileOpen, onClose }) => {
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
   };
+
+  const storeName = String(activeStore?.name || '').trim();
 
   const handleSwitchToAdmin = async () => {
     const adminHash = (settings && settings.adminSwitchPasswordHash) ? settings.adminSwitchPasswordHash : '';
@@ -62,6 +68,11 @@ const Sidebar = ({ currentScreen, onNavigate, isMobileOpen, onClose }) => {
       }
 
       changeRole(ROLES.ADMIN);
+      try {
+        localStorage.setItem('salesUp_session_v1', JSON.stringify({ isAuthenticated: true, role: ROLES.ADMIN, businessId: activeStore?.id || '', cashierId: '' }));
+      } catch {
+        // ignore
+      }
       onNavigate('dashboard');
       if (isMobileOpen) onClose();
     } catch (err) {
@@ -82,16 +93,22 @@ const Sidebar = ({ currentScreen, onNavigate, isMobileOpen, onClose }) => {
       <nav className={`app-sidebar ${isMobileOpen ? 'open' : ''}`} aria-label="Primary Navigation">
         <div className="sidebar-header">
           <div className="brand" aria-label="SalesUP">
-            {activeStore?.logoBase64 ? (
-              <img src={activeStore.logoBase64} alt={activeStore.name || 'SalesUP'} className="brand-logo-img" />
-            ) : (
-              <span className="brand-icon" aria-hidden="true"><TrendingUp size={18} strokeWidth={2.25} /></span>
-            )}
+            <span className="brand-icon" aria-hidden="true"><TrendingUp size={18} strokeWidth={2.25} /></span>
             <span className="brand-name">
               <span className="brand-sales">Sales</span>
               <span className="brand-up">UP</span>
             </span>
+            {activeStore?.logoBase64 && (
+              <img
+                src={activeStore.logoBase64}
+                alt={activeStore.name || 'Business logo'}
+                className="brand-business-logo-img"
+              />
+            )}
           </div>
+          {!!storeName && (
+            <div className="sidebar-store-name">{storeName}</div>
+          )}
         </div>
         <div className="sidebar-list" role="list">
           {items.map((item) => {
@@ -134,6 +151,47 @@ const Sidebar = ({ currentScreen, onNavigate, isMobileOpen, onClose }) => {
               </span>
             </button>
           )}
+
+          <div style={{ marginTop: 'auto' }} />
+
+          <div style={{ paddingTop: 'var(--spacing-sm)', borderTop: '1px solid var(--border-color)' }}>
+            {userRole === ROLES.GUEST || !isAuthenticated ? (
+              <button
+                role="listitem"
+                className="sidebar-item"
+                onClick={() => {
+                  openAuthPrompt('You must register your business or log in to continue.');
+                  if (isMobileOpen) onClose();
+                }}
+              >
+                <span className="sidebar-icon" aria-hidden="true">
+                  <LogIn size={18} strokeWidth={2} />
+                </span>
+                <span className="sidebar-text">
+                  <span className="sidebar-title">Register / Login</span>
+                  <span className="sidebar-desc">Unlock actions</span>
+                </span>
+              </button>
+            ) : (
+              <button
+                role="listitem"
+                className="sidebar-item"
+                onClick={() => {
+                  logout();
+                  onNavigate('dashboard');
+                  if (isMobileOpen) onClose();
+                }}
+              >
+                <span className="sidebar-icon" aria-hidden="true">
+                  <LogOut size={18} strokeWidth={2} />
+                </span>
+                <span className="sidebar-text">
+                  <span className="sidebar-title">Logout</span>
+                  <span className="sidebar-desc">Return to view-only mode</span>
+                </span>
+              </button>
+            )}
+          </div>
         </div>
       </nav>
     </>
