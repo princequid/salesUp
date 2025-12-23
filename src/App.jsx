@@ -7,6 +7,7 @@ import { StoreProvider } from './logic/StoreContext';
 import { AuthProvider } from './logic/AuthContext';
 import { useRole } from './logic/roleUtils';
 import { useStore } from './logic/storeContextImpl';
+import { useAuth } from './logic/AuthContext';
 import Dashboard from './screens/dashboardScreen/Dashboard';
 import AddProduct from './screens/addProductScreen/AddProduct';
 import ProductList from './screens/productListScreen/ProductList';
@@ -15,6 +16,7 @@ import Reports from './screens/reportsScreen/Reports';
 import LowStock from './screens/lowStockScreen/LowStock';
 import Settings from './screens/settingsScreen/Settings';
 import ReceiptHistory from './screens/receiptHistoryScreen/ReceiptHistory';
+import WelcomeScreen from './screens/welcomeScreen/WelcomeScreen';
 import SyncIndicator from './components/SyncIndicator';
 import Sidebar from './components/Sidebar';
 import './styles/index.css';
@@ -56,11 +58,18 @@ function App() {
 function AppContent() {
   const { hasAccess, isCashier, userRole, ROLES } = useRole();
   const { activeStore } = useStore();
+  const { requireAuth } = useAuth();
   const storeName = String(activeStore?.name || '').trim();
   const [currentScreen, setCurrentScreen] = useState(() =>
     isCashier() ? 'recordSale' : 'dashboard'
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Welcome Screen state
+  const [showWelcome, setShowWelcome] = useState(() => {
+    const hasSeenWelcome = localStorage.getItem('salesUp_hasSeenWelcome');
+    return !hasSeenWelcome;
+  });
 
   useEffect(() => {
     if (!hasAccess(currentScreen)) {
@@ -84,6 +93,25 @@ function AppContent() {
     } else {
       alert('Access denied. You do not have permission to access this screen.');
     }
+  };
+
+  const handleGetStarted = () => {
+    localStorage.setItem('salesUp_hasSeenWelcome', 'true');
+    setShowWelcome(false);
+  };
+
+  const handleRegister = () => {
+    localStorage.setItem('salesUp_hasSeenWelcome', 'true');
+    setShowWelcome(false);
+    // Trigger auth modal with register context
+    requireAuth('Register your business to unlock all features and manage your store.');
+  };
+
+  const handleLogin = () => {
+    localStorage.setItem('salesUp_hasSeenWelcome', 'true');
+    setShowWelcome(false);
+    // Trigger auth modal with login context
+    requireAuth('Login to access your business data and continue managing your store.');
   };
 
   const renderScreen = () => (
@@ -127,6 +155,15 @@ function AppContent() {
 
   return (
     <div className="app-shell">
+      {/* Welcome Screen Overlay */}
+      {showWelcome && (
+        <WelcomeScreen
+          onGetStarted={handleGetStarted}
+          onRegister={handleRegister}
+          onLogin={handleLogin}
+        />
+      )}
+
       <header className="app-topbar">
         <button
           className="hamburger-btn"

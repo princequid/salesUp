@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AppButton, AppInput, AppModal } from './index';
+import { AppButton, AppInput, AppModal, PasswordInput } from './index';
 
 const AuthPromptModal = ({
   isOpen,
@@ -12,10 +12,12 @@ const AuthPromptModal = ({
   onLoginAdmin
 }) => {
   const [businessName, setBusinessName] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminPasswordConfirm, setAdminPasswordConfirm] = useState('');
   const [cashierUsername, setCashierUsername] = useState('');
   const [cashierPassword, setCashierPassword] = useState('');
+  const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [error, setError] = useState('');
   const [isWorking, setIsWorking] = useState(false);
@@ -25,10 +27,12 @@ const AuthPromptModal = ({
     setError('');
     setIsWorking(false);
     setBusinessName('');
+    setAdminEmail('');
     setAdminPassword('');
     setAdminPasswordConfirm('');
     setCashierUsername('');
     setCashierPassword('');
+    setLoginEmail('');
     setLoginPassword('');
   }, [isOpen]);
 
@@ -42,7 +46,7 @@ const AuthPromptModal = ({
     setError('');
     setIsWorking(true);
     try {
-      await onRegister({ businessName, adminPassword, adminPasswordConfirm });
+      await onRegister({ businessName, adminEmail, adminPassword, adminPasswordConfirm });
     } catch (e) {
       setError(e?.message || 'Registration failed');
       setIsWorking(false);
@@ -54,7 +58,7 @@ const AuthPromptModal = ({
     setError('');
     setIsWorking(true);
     try {
-      await onLoginAdmin({ password: loginPassword });
+      await onLoginAdmin({ email: loginEmail, password: loginPassword });
     } catch (e) {
       setError(e?.message || 'Login failed');
       setIsWorking(false);
@@ -118,17 +122,25 @@ const AuthPromptModal = ({
               />
 
               <AppInput
+                label="Admin Email"
+                name="adminEmail"
+                type="email"
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
+                placeholder="admin@example.com"
+                required
+              />
+
+              <PasswordInput
                 label="Admin Password"
-                type="password"
                 name="adminPassword"
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
                 placeholder="Minimum 4 characters"
               />
 
-              <AppInput
+              <PasswordInput
                 label="Confirm Password"
-                type="password"
                 name="adminPasswordConfirm"
                 value={adminPasswordConfirm}
                 onChange={(e) => setAdminPasswordConfirm(e.target.value)}
@@ -161,9 +173,8 @@ const AuthPromptModal = ({
                 placeholder="e.g. cashier01"
               />
 
-              <AppInput
+              <PasswordInput
                 label="Cashier Password"
-                type="password"
                 name="cashierPassword"
                 value={cashierPassword}
                 onChange={(e) => setCashierPassword(e.target.value)}
@@ -185,12 +196,21 @@ const AuthPromptModal = ({
             }}>
               <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>Login as Admin</div>
               <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
-                Enter the Admin password to continue.
+                Enter your Admin email and password to continue.
               </div>
 
               <AppInput
+                label="Admin Email"
+                name="adminLoginEmail"
+                type="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                placeholder="Enter admin email"
+                required
+              />
+
+              <PasswordInput
                 label="Admin Password"
-                type="password"
                 name="adminLoginPassword"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}

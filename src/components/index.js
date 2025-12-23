@@ -1,6 +1,7 @@
 export { default as AppButton } from './AppButton';
 export { default as AppCard } from './AppCard';
 export { default as AppInput } from './AppInput';
+export { default as PasswordInput } from './PasswordInput';
 export { default as AppSectionHeader } from './AppSectionHeader';
 export { default as AppListItem } from './AppListItem';
 export { default as AppBadge } from './AppBadge';

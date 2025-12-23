@@ -7,6 +7,7 @@ import AuthPromptModal from '../components/AuthPromptModal';
 
 const SESSION_STORAGE_KEY = 'salesUp_session_v1';
 const CASHIERS_STORAGE_PREFIX = 'salesUp_cashiers_v1_';
+const ADMIN_ACCOUNT_KEY = 'salesUp_adminAccount';
 
 const hashPassword = async (password) => {
   if (!window.crypto?.subtle) {
@@ -92,17 +93,37 @@ export const AuthProvider = ({ children }) => {
     return false;
   }, [isAuthenticated, userRole, ROLES.GUEST, openAuthPrompt]);
 
-  const registerBusiness = useCallback(async ({ businessName, adminPassword, adminPasswordConfirm }) => {
+  const registerBusiness = useCallback(async ({ businessName, adminEmail, adminPassword, adminPasswordConfirm }) => {
     const name = String(businessName || '').trim();
+    const email = String(adminEmail || '').trim();
     const p1 = String(adminPassword || '');
     const p2 = String(adminPasswordConfirm || '');
 
     if (!name) throw new Error('Business name is required');
+    if (!email) throw new Error('Admin email is required');
+    if (!email.includes('@') || !email.includes('.')) throw new Error('Please enter a valid email address');
     if (!activeStore?.id) throw new Error('No active store found');
     if (!p1 || p1.length < 4) throw new Error('Admin password must be at least 4 characters');
     if (p1 !== p2) throw new Error('Passwords do not match');
 
     const hash = await hashPassword(p1);
+
+    // Create admin account object
+    const adminAccount = {
+      email,
+      password: hash,
+      role: 'admin',
+      businessId: activeStore.id,
+      businessName: name,
+      createdAt: new Date().toISOString()
+    };
+
+    // Persist admin account to localStorage
+    try {
+      localStorage.setItem(ADMIN_ACCOUNT_KEY, JSON.stringify(adminAccount));
+    } catch (error) {
+      throw new Error('Failed to save admin account');
+    }
 
     updateStore(activeStore.id, { name, isRegistered: true });
     updateSettings({ adminSwitchPasswordHash: hash, businessName: name });
@@ -280,17 +301,34 @@ export const AuthProvider = ({ children }) => {
     closeAuthPrompt();
   }, [stores, readCashiers, isStoreRegistered, changeRole, ROLES.CASHIER, closeAuthPrompt, activeStoreId, switchStore]);
 
-  const loginAdmin = useCallback(async ({ password }) => {
-    const adminHash = String(settings?.adminSwitchPasswordHash || '').trim();
-    if (!adminHash) {
+  const loginAdmin = useCallback(async ({ email, password }) => {
+    const emailInput = String(email || '').trim();
+    const passwordInput = String(password || '');
+    
+    if (!emailInput) throw new Error('Email is required');
+    if (!passwordInput) throw new Error('Password is required');
+
+    // Get admin account from localStorage
+    let adminAccount;
+    try {
+      const stored = localStorage.getItem(ADMIN_ACCOUNT_KEY);
+      if (!stored) {
+        throw new Error('Admin login is not set up yet. Register your business first.');
+      }
+      adminAccount = JSON.parse(stored);
+    } catch (error) {
       throw new Error('Admin login is not set up yet. Register your business first.');
     }
 
-    const p = String(password || '');
-    if (!p) throw new Error('Password is required');
+    // Validate email and password
+    if (emailInput !== adminAccount.email) {
+      throw new Error('Invalid email or password');
+    }
 
-    const enteredHash = await hashPassword(p);
-    if (enteredHash !== adminHash) throw new Error('Incorrect password');
+    const enteredHash = await hashPassword(passwordInput);
+    if (enteredHash !== adminAccount.password) {
+      throw new Error('Invalid email or password');
+    }
 
     changeRole(ROLES.ADMIN);
     setIsAuthenticated(true);
@@ -302,14 +340,14 @@ export const AuthProvider = ({ children }) => {
         JSON.stringify({
           isAuthenticated: true,
           role: ROLES.ADMIN,
-          businessId: activeStore?.id || ''
+          businessId: adminAccount.businessId
         })
       );
     } catch {
       // ignore
     }
     closeAuthPrompt();
-  }, [settings, changeRole, ROLES.ADMIN, closeAuthPrompt, activeStore]);
+  }, [changeRole, ROLES.ADMIN, closeAuthPrompt]);
 
   const logout = useCallback(() => {
     changeRole(ROLES.GUEST);

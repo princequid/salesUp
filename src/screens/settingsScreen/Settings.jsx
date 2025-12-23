@@ -9,7 +9,7 @@ import ActionGuard from '../../components/ActionGuard';
 import { useAuth } from '../../logic/AuthContext';
 import cloudSyncService, { SYNC_STATUS } from '../../logic/cloudSyncService';
 import { ArrowLeft, Save, Building, Bell, Moon, Smartphone, UserCircle, Cloud, CloudOff, RefreshCw, CheckCircle, XCircle, Wifi, WifiOff, Store, Plus, MapPin, Trash2 } from 'lucide-react';
-import { AppButton, AppCard, AppInput, AppSectionHeader, AppIconButton } from '../../components';
+import { AppButton, AppCard, AppInput, AppSectionHeader, AppIconButton, PasswordInput } from '../../components';
 import PageLayout from '../../components/PageLayout';
 import { requestNotificationPermission } from '../../logic/notifications';
 
@@ -275,7 +275,7 @@ const Settings = ({ onNavigate }) => {
         const now = new Date();
         const diffMs = now - date;
         const diffMins = Math.floor(diffMs / 60000);
-        
+
         if (diffMins < 1) return 'Just now';
         if (diffMins < 60) return `${diffMins} min ago`;
         if (diffMins < 1440) return `${Math.floor(diffMins / 60)} hours ago`;
@@ -434,16 +434,14 @@ const Settings = ({ onNavigate }) => {
                             </div>
 
                             <div style={{ display: 'grid', gap: 'var(--spacing-md)' }}>
-                                <AppInput
+                                <PasswordInput
                                     label="New Admin Switch Password"
-                                    type="password"
                                     value={adminSwitchPassword}
                                     onChange={(e) => setAdminSwitchPassword(e.target.value)}
                                     placeholder="Enter new password"
                                 />
-                                <AppInput
+                                <PasswordInput
                                     label="Confirm Password"
-                                    type="password"
                                     value={adminSwitchPasswordConfirm}
                                     onChange={(e) => setAdminSwitchPasswordConfirm(e.target.value)}
                                     placeholder="Re-enter password"
@@ -493,18 +491,16 @@ const Settings = ({ onNavigate }) => {
                                     placeholder="e.g. cashier01"
                                 />
 
-                                <AppInput
+                                <PasswordInput
                                     label="Password"
-                                    type="password"
                                     name="newCashierPassword"
                                     value={newCashierPassword}
                                     onChange={(e) => setNewCashierPassword(e.target.value)}
                                     placeholder="Minimum 4 characters"
                                 />
 
-                                <AppInput
+                                <PasswordInput
                                     label="Confirm Password"
-                                    type="password"
                                     name="newCashierPasswordConfirm"
                                     value={newCashierPasswordConfirm}
                                     onChange={(e) => setNewCashierPasswordConfirm(e.target.value)}
@@ -583,184 +579,184 @@ const Settings = ({ onNavigate }) => {
 
                     {/* Multi-Store Management */}
                     <PermissionGate action="stores.manage">
-                    <div>
-                        <AppSectionHeader title="Store Management" />
-                        <p className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
-                            Manage multiple stores with separate inventory and sales data.
-                        </p>
+                        <div>
+                            <AppSectionHeader title="Store Management" />
+                            <p className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
+                                Manage multiple stores with separate inventory and sales data.
+                            </p>
 
-                        {/* Current Store Indicator */}
-                        <div style={{
-                            padding: 'var(--spacing-md)',
-                            background: 'var(--accent-primary)',
-                            color: 'var(--text-on-accent)',
-                            borderRadius: 'var(--radius-sm)',
-                            marginBottom: 'var(--spacing-md)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 'var(--spacing-sm)'
-                        }}>
-                            <Store size={20} />
-                            <div>
-                                <div style={{ fontWeight: 600 }}>{activeStore.name}</div>
-                                {activeStore.location && (
-                                    <div style={{ fontSize: '0.75rem', opacity: 0.9, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                        <MapPin size={12} />
-                                        {activeStore.location}
-                                    </div>
-                                )}
+                            {/* Current Store Indicator */}
+                            <div style={{
+                                padding: 'var(--spacing-md)',
+                                background: 'var(--accent-primary)',
+                                color: 'var(--text-on-accent)',
+                                borderRadius: 'var(--radius-sm)',
+                                marginBottom: 'var(--spacing-md)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 'var(--spacing-sm)'
+                            }}>
+                                <Store size={20} />
+                                <div>
+                                    <div style={{ fontWeight: 600 }}>{activeStore.name}</div>
+                                    {activeStore.location && (
+                                        <div style={{ fontSize: '0.75rem', opacity: 0.9, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                            <MapPin size={12} />
+                                            {activeStore.location}
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ marginLeft: 'auto', fontSize: '0.7rem', opacity: 0.8 }}>
+                                    Active
+                                </div>
                             </div>
-                            <div style={{ marginLeft: 'auto', fontSize: '0.7rem', opacity: 0.8 }}>
-                                Active
-                            </div>
-                        </div>
 
-                        {/* Stores List */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-md)' }}>
-                            {stores.map(store => (
-                                <div key={store.id} style={{
-                                    padding: 'var(--spacing-md)',
-                                    background: store.id === activeStore.id ? 'var(--bg-secondary)' : 'var(--bg-card)',
-                                    border: store.id === activeStore.id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 'var(--spacing-sm)'
-                                }}>
-                                    <Store size={18} color={store.id === activeStore.id ? 'var(--accent-primary)' : 'var(--text-secondary)'} />
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ fontWeight: 500 }}>{store.name}</div>
-                                        {store.location && (
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
-                                                <MapPin size={12} />
-                                                {store.location}
-                                            </div>
+                            {/* Stores List */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-md)' }}>
+                                {stores.map(store => (
+                                    <div key={store.id} style={{
+                                        padding: 'var(--spacing-md)',
+                                        background: store.id === activeStore.id ? 'var(--bg-secondary)' : 'var(--bg-card)',
+                                        border: store.id === activeStore.id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                                        borderRadius: 'var(--radius-sm)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 'var(--spacing-sm)'
+                                    }}>
+                                        <Store size={18} color={store.id === activeStore.id ? 'var(--accent-primary)' : 'var(--text-secondary)'} />
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontWeight: 500 }}>{store.name}</div>
+                                            {store.location && (
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
+                                                    <MapPin size={12} />
+                                                    {store.location}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {store.id !== activeStore.id && (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => switchStore(store.id)}
+                                                    style={{
+                                                        padding: '0.25rem 0.75rem',
+                                                        background: 'var(--accent-primary)',
+                                                        color: 'var(--text-on-accent)',
+                                                        border: 'none',
+                                                        borderRadius: 'var(--radius-sm)',
+                                                        fontSize: '0.75rem',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    Switch
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteStore(store.id)}
+                                                    disabled={stores.length <= 1}
+                                                    style={{
+                                                        padding: '0.25rem',
+                                                        background: 'transparent',
+                                                        border: 'none',
+                                                        color: stores.length <= 1 ? 'var(--text-secondary)' : 'var(--accent-danger)',
+                                                        cursor: stores.length <= 1 ? 'not-allowed' : 'pointer',
+                                                        opacity: stores.length <= 1 ? 0.3 : 1
+                                                    }}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </>
                                         )}
                                     </div>
-                                    {store.id !== activeStore.id && (
-                                        <>
+                                ))}
+                            </div>
+
+                            {/* Add Store Form */}
+                            {!showAddStore ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAddStore(true)}
+                                    style={{
+                                        padding: 'var(--spacing-md)',
+                                        background: 'var(--bg-secondary)',
+                                        border: '1px dashed var(--border-color)',
+                                        borderRadius: 'var(--radius-sm)',
+                                        color: 'var(--text-primary)',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.5rem',
+                                        fontSize: '0.875rem'
+                                    }}
+                                >
+                                    <Plus size={16} />
+                                    Add New Store
+                                </button>
+                            ) : (
+                                <div style={{
+                                    padding: 'var(--spacing-md)',
+                                    background: 'var(--bg-secondary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-sm)'
+                                }}>
+                                    <h4 style={{ marginBottom: 'var(--spacing-md)', fontSize: '0.875rem', fontWeight: 600 }}>New Store</h4>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+                                        <AppInput
+                                            label="Store Name"
+                                            value={newStoreData.name}
+                                            onChange={(e) => setNewStoreData(prev => ({ ...prev, name: e.target.value }))}
+                                            placeholder="e.g. Downtown Branch"
+                                            icon={Store}
+                                        />
+                                        <AppInput
+                                            label="Location (Optional)"
+                                            value={newStoreData.location}
+                                            onChange={(e) => setNewStoreData(prev => ({ ...prev, location: e.target.value }))}
+                                            placeholder="e.g. 123 Main St"
+                                            icon={MapPin}
+                                        />
+                                        <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
                                             <button
                                                 type="button"
-                                                onClick={() => switchStore(store.id)}
+                                                onClick={handleAddStore}
                                                 style={{
-                                                    padding: '0.25rem 0.75rem',
+                                                    flex: 1,
+                                                    padding: '0.5rem',
                                                     background: 'var(--accent-primary)',
-                                                    color: 'var(--text-on-accent)',
+                                                    color: '#fff',
                                                     border: 'none',
                                                     borderRadius: 'var(--radius-sm)',
-                                                    fontSize: '0.75rem',
+                                                    fontSize: '0.875rem',
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                Switch
+                                                Create Store
                                             </button>
                                             <button
                                                 type="button"
-                                                onClick={() => handleDeleteStore(store.id)}
-                                                disabled={stores.length <= 1}
+                                                onClick={() => {
+                                                    setShowAddStore(false);
+                                                    setNewStoreData({ name: '', location: '' });
+                                                }}
                                                 style={{
-                                                    padding: '0.25rem',
-                                                    background: 'transparent',
-                                                    border: 'none',
-                                                    color: stores.length <= 1 ? 'var(--text-secondary)' : 'var(--accent-danger)',
-                                                    cursor: stores.length <= 1 ? 'not-allowed' : 'pointer',
-                                                    opacity: stores.length <= 1 ? 0.3 : 1
+                                                    flex: 1,
+                                                    padding: '0.5rem',
+                                                    background: 'var(--bg-card)',
+                                                    color: 'var(--text-primary)',
+                                                    border: '1px solid var(--border-color)',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    fontSize: '0.875rem',
+                                                    cursor: 'pointer'
                                                 }}
                                             >
-                                                <Trash2 size={16} />
+                                                Cancel
                                             </button>
-                                        </>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Add Store Form */}
-                        {!showAddStore ? (
-                            <button
-                                type="button"
-                                onClick={() => setShowAddStore(true)}
-                                style={{
-                                    padding: 'var(--spacing-md)',
-                                    background: 'var(--bg-secondary)',
-                                    border: '1px dashed var(--border-color)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    color: 'var(--text-primary)',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '0.5rem',
-                                    fontSize: '0.875rem'
-                                }}
-                            >
-                                <Plus size={16} />
-                                Add New Store
-                            </button>
-                        ) : (
-                            <div style={{
-                                padding: 'var(--spacing-md)',
-                                background: 'var(--bg-secondary)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: 'var(--radius-sm)'
-                            }}>
-                                <h4 style={{ marginBottom: 'var(--spacing-md)', fontSize: '0.875rem', fontWeight: 600 }}>New Store</h4>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
-                                    <AppInput
-                                        label="Store Name"
-                                        value={newStoreData.name}
-                                        onChange={(e) => setNewStoreData(prev => ({ ...prev, name: e.target.value }))}
-                                        placeholder="e.g. Downtown Branch"
-                                        icon={Store}
-                                    />
-                                    <AppInput
-                                        label="Location (Optional)"
-                                        value={newStoreData.location}
-                                        onChange={(e) => setNewStoreData(prev => ({ ...prev, location: e.target.value }))}
-                                        placeholder="e.g. 123 Main St"
-                                        icon={MapPin}
-                                    />
-                                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
-                                        <button
-                                            type="button"
-                                            onClick={handleAddStore}
-                                            style={{
-                                                flex: 1,
-                                                padding: '0.5rem',
-                                                background: 'var(--accent-primary)',
-                                                color: '#fff',
-                                                border: 'none',
-                                                borderRadius: 'var(--radius-sm)',
-                                                fontSize: '0.875rem',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            Create Store
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setShowAddStore(false);
-                                                setNewStoreData({ name: '', location: '' });
-                                            }}
-                                            style={{
-                                                flex: 1,
-                                                padding: '0.5rem',
-                                                background: 'var(--bg-card)',
-                                                color: 'var(--text-primary)',
-                                                border: '1px solid var(--border-color)',
-                                                borderRadius: 'var(--radius-sm)',
-                                                fontSize: '0.875rem',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            Cancel
-                                        </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
-                    </div>
+                            )}
+                        </div>
                     </PermissionGate>
 
                     {/* Cloud Sync Section */}
@@ -866,9 +862,9 @@ const Settings = ({ onNavigate }) => {
                             </PermissionGate>
                         </div>
 
-                        <p style={{ 
-                            fontSize: '0.7rem', 
-                            color: 'var(--text-secondary)', 
+                        <p style={{
+                            fontSize: '0.7rem',
+                            color: 'var(--text-secondary)',
                             marginTop: 'var(--spacing-sm)',
                             fontStyle: 'italic'
                         }}>
@@ -996,89 +992,89 @@ const Settings = ({ onNavigate }) => {
 
                     {/* User Role Section */}
                     <PermissionGate action="users.manage">
-                    <div>
-                        <AppSectionHeader title="User Role" />
-                        <p className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
-                            Select your role to customize access permissions.
-                        </p>
-                        
-                        <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    changeRole(ROLES.ADMIN);
-                                    try {
-                                        localStorage.setItem('salesUp_session_v1', JSON.stringify({ isAuthenticated: true, role: ROLES.ADMIN, businessId: activeStore?.id || '', cashierId: '' }));
-                                    } catch {
-                                        // ignore
-                                    }
-                                }}
-                                style={{
-                                    flex: 1,
-                                    padding: 'var(--spacing-md)',
-                                    background: userRole === ROLES.ADMIN ? 'var(--accent-primary)' : 'var(--bg-secondary)',
-                                    color: userRole === ROLES.ADMIN ? '#fff' : 'var(--text-primary)',
-                                    border: userRole === ROLES.ADMIN ? 'none' : '1px solid var(--border-color)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    transition: 'all 0.2s'
-                                }}
-                            >
-                                <UserCircle size={32} />
-                                <div>
-                                    <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Admin</div>
-                                    <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Full Access</div>
-                                </div>
-                            </button>
-                            
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    changeRole(ROLES.CASHIER);
-                                    try {
-                                        localStorage.setItem('salesUp_session_v1', JSON.stringify({ isAuthenticated: true, role: ROLES.CASHIER, businessId: activeStore?.id || '', cashierId: '' }));
-                                    } catch {
-                                        // ignore
-                                    }
-                                }}
-                                style={{
-                                    flex: 1,
-                                    padding: 'var(--spacing-md)',
-                                    background: userRole === ROLES.CASHIER ? 'var(--accent-primary)' : 'var(--bg-secondary)',
-                                    color: userRole === ROLES.CASHIER ? '#fff' : 'var(--text-primary)',
-                                    border: userRole === ROLES.CASHIER ? 'none' : '1px solid var(--border-color)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    transition: 'all 0.2s'
-                                }}
-                            >
-                                <UserCircle size={32} />
-                                <div>
-                                    <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Cashier</div>
-                                    <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>POS Only</div>
-                                </div>
-                            </button>
-                        </div>
+                        <div>
+                            <AppSectionHeader title="User Role" />
+                            <p className="text-caption" style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
+                                Select your role to customize access permissions.
+                            </p>
 
-                        <div style={{
-                            marginTop: 'var(--spacing-md)',
-                            padding: 'var(--spacing-sm)',
-                            background: 'var(--bg-secondary)',
-                            borderRadius: 'var(--radius-sm)',
-                            fontSize: '0.75rem',
-                            color: 'var(--text-secondary)'
-                        }}>
-                            <strong>Current Role:</strong> {userRole === ROLES.ADMIN ? 'Admin (Full Access)' : 'Cashier (POS & Receipts Only)'}
+                            <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        changeRole(ROLES.ADMIN);
+                                        try {
+                                            localStorage.setItem('salesUp_session_v1', JSON.stringify({ isAuthenticated: true, role: ROLES.ADMIN, businessId: activeStore?.id || '', cashierId: '' }));
+                                        } catch {
+                                            // ignore
+                                        }
+                                    }}
+                                    style={{
+                                        flex: 1,
+                                        padding: 'var(--spacing-md)',
+                                        background: userRole === ROLES.ADMIN ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                                        color: userRole === ROLES.ADMIN ? '#fff' : 'var(--text-primary)',
+                                        border: userRole === ROLES.ADMIN ? 'none' : '1px solid var(--border-color)',
+                                        borderRadius: 'var(--radius-sm)',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    <UserCircle size={32} />
+                                    <div>
+                                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Admin</div>
+                                        <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Full Access</div>
+                                    </div>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        changeRole(ROLES.CASHIER);
+                                        try {
+                                            localStorage.setItem('salesUp_session_v1', JSON.stringify({ isAuthenticated: true, role: ROLES.CASHIER, businessId: activeStore?.id || '', cashierId: '' }));
+                                        } catch {
+                                            // ignore
+                                        }
+                                    }}
+                                    style={{
+                                        flex: 1,
+                                        padding: 'var(--spacing-md)',
+                                        background: userRole === ROLES.CASHIER ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                                        color: userRole === ROLES.CASHIER ? '#fff' : 'var(--text-primary)',
+                                        border: userRole === ROLES.CASHIER ? 'none' : '1px solid var(--border-color)',
+                                        borderRadius: 'var(--radius-sm)',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    <UserCircle size={32} />
+                                    <div>
+                                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Cashier</div>
+                                        <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>POS Only</div>
+                                    </div>
+                                </button>
+                            </div>
+
+                            <div style={{
+                                marginTop: 'var(--spacing-md)',
+                                padding: 'var(--spacing-sm)',
+                                background: 'var(--bg-secondary)',
+                                borderRadius: 'var(--radius-sm)',
+                                fontSize: '0.75rem',
+                                color: 'var(--text-secondary)'
+                            }}>
+                                <strong>Current Role:</strong> {userRole === ROLES.ADMIN ? 'Admin (Full Access)' : 'Cashier (POS & Receipts Only)'}
+                            </div>
                         </div>
-                    </div>
                     </PermissionGate>
 
                     <PermissionGate action="settings.save">
